@@ -8,7 +8,8 @@
 #
 #   make SDK=/path/to/common-3.0.sdk
 #
-# The result is build/DaredBricks.ipa.
+# The result is build/DaredBricks.ipa. For a build where every broken brick
+# drops a power-up, for testing them: make clean; make SDK=... CAPSULE_CHANCE=1024
 
 CLANG ?= clang
 BUILD := build
@@ -28,6 +29,10 @@ CFLAGS := \
 	-nodefaultlibs -fno-stack-protector \
 	-ObjC -fno-objc-exceptions -fno-objc-arc -fno-objc-arc-exceptions \
 	-Os -Wall -Wno-objc-root-class
+# For testing power-ups: CAPSULE_CHANCE=1024 makes every broken brick drop one.
+ifdef CAPSULE_CHANCE
+CFLAGS += -DCAPSULE_CHANCE=$(CAPSULE_CHANCE)
+endif
 LIBS := \
 	-framework UIKit -framework Foundation -framework CoreGraphics \
 	-framework OpenAL \

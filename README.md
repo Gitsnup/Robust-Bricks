@@ -36,6 +36,19 @@ make SDK=/path/to/common-3.0.sdk
 
 This builds `build/DaredBricks.ipa`, for armv6 and armv7. That one file is the whole app; `make clean` removes it.
 
+### Testing power-ups
+
+Normally about one broken brick in six drops a power-up. To try them all quickly, build a version where every broken brick drops one:
+
+```
+make clean
+make SDK=/path/to/common-3.0.sdk CAPSULE_CHANCE=1024
+```
+
+`CAPSULE_CHANCE` is the chance out of 1024 (the default is 171). Run `make clean` before switching between this and a normal build, so the game is rebuilt with the new setting.
+
+### Notes
+
 The game doesn't use any SDK headers: the few system APIs it needs are declared in `src/System.h`.
 
 The sound effects in `resources/` were generated for this game and are under the same license as the code. Sound plays through OpenAL.
