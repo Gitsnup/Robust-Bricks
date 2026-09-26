@@ -14,13 +14,14 @@
 // colored pieces behind it, and losing the last ball shows GAME OVER with the
 // number of bricks left. Tapping after either goes back to the title screen.
 //
-// Broken bricks sometimes drop a power-up capsule, which takes effect if the
-// paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
-// or M (multi-ball). The red R capsule is a bad one: it reduces the paddle
-// size 25% for 15 seconds. P and R cancel each other out, so an R caught
-// during a P just ends the P, and a P caught during an R just ends the R. A
-// life is only lost when the last ball in play falls, and losing one ends any
-// P, S or R effect and clears falling capsules.
+// Broken bricks sometimes drop a capsule, which takes effect if the paddle
+// catches it: B (ball added), P (paddle size increased, for 15 seconds), S
+// (slower ball, for 15 seconds), M (multiple balls, 2 more) or R (reduce paddle
+// size, for 15 seconds). R is the bad one, and the only red capsule. P and R
+// cancel each other out, so an R caught during a P just ends the P, and a P
+// caught during an R just ends the R. A life is only lost when the last ball in
+// play falls, and losing one ends any P, S or R effect and clears falling
+// capsules.
 
 #include "BricksView.h"
 #include "Sound.h"
@@ -112,14 +113,13 @@ static const CGFloat powerUpColors[PowerUpCount][3] = {
     {0.95f, 0.55f, 0.10f}, {0.90f, 0.10f, 0.10f},
 };
 
-// What each capsule does, for the How to Play screen. Each one has room for
-// two lines, and R needs them.
+// What each capsule does, for the How to Play screen.
 static const char *const powerUpDescriptions[PowerUpCount] = {
-    "One more ball",
-    "A longer paddle for 15 seconds",
-    "Slower balls for 15 seconds",
-    "Two more balls in play at once",
-    "Bad! Reduce paddle size 25%\nfor 15 seconds",
+    "Ball added",
+    "Paddle size increased (15 seconds)",
+    "Slower ball (15 seconds)",
+    "Multiple balls (2 more)",
+    "Reduce paddle size (15 seconds)",
 };
 
 // A small xorshift generator. The system's rand() and arc4random() start from
@@ -864,11 +864,11 @@ static void saveInteger(const char *key, NSInteger value) {
          context:context];
 
   for (int i = 0; i < PowerUpCount; i++) {
-    CGFloat y = 204 + i * 28;
+    CGFloat y = 206 + i * 30;
     [self drawCapsule:(PowerUp)i x:20 y:y context:context];
     [self drawText:powerUpDescriptions[i]
             inRect:CGRectMake(20 + CAPSULE_WIDTH + 12, y - 2,
-                              width - 20 - CAPSULE_WIDTH - 12 - 8, 40)
+                              width - 20 - CAPSULE_WIDTH - 12 - 8, 20)
           fontSize:14
          alignment:UITextAlignmentLeft
            context:context];
@@ -876,7 +876,7 @@ static void saveInteger(const char *key, NSInteger value) {
 
   [self drawText:"P and R cancel each other out. Losing a ball ends P, S "
                  "and R."
-          inRect:CGRectMake(16, 204 + PowerUpCount * 28 + 20, width - 32, 40)
+          inRect:CGRectMake(16, 206 + PowerUpCount * 30 + 6, width - 32, 40)
         fontSize:14
        alignment:UITextAlignmentLeft
          context:context];

@@ -26,11 +26,11 @@ typedef enum {
 
 // What a falling capsule does when the paddle catches it.
 typedef enum {
-  PowerUpBall,   // B: one more ball in the counter.
-  PowerUpPaddle, // P: a longer paddle, for a while.
-  PowerUpSlow,   // S: half-speed balls, for a while.
-  PowerUpMulti,  // M: two more balls in play at once.
-  PowerUpShrink, // R: bad! Reduces the paddle size 25%, for a while.
+  PowerUpBall,   // B: ball added (to the counter).
+  PowerUpPaddle, // P: paddle size increased, for a while.
+  PowerUpSlow,   // S: slower ball (half speed), for a while.
+  PowerUpMulti,  // M: multiple balls (2 more in play).
+  PowerUpShrink, // R: reduce paddle size (25%), for a while. The bad one.
   PowerUpCount
 } PowerUp;
 
