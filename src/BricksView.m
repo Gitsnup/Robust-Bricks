@@ -8,15 +8,17 @@
 // shows the fastest winning time and the number of games played, and has
 // buttons for the ball speed (Normal, Fast or Ludicrous) and for sound on or
 // off. All of these are saved between launches, with a separate fastest time
-// for each speed. Drag anywhere to move the paddle, tap to serve. There are three balls per game,
-// and a timer runs from the first serve until the game ends. Clearing every
-// brick shows YOU WIN, losing the last ball shows GAME OVER, and tapping after
-// either starts a new game with a new layout.
+// for each speed. Drag anywhere to move the paddle, tap to serve. There are
+// three balls per game, and a timer runs from the first serve until the game
+// ends. Clearing every brick shows YOU WIN, losing the last ball shows GAME
+// OVER, and tapping after either starts a new game with a new layout.
 //
 // Broken bricks sometimes drop a power-up capsule, which takes effect if the
 // paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
-// or M (multi-ball). A life is only lost when the last ball in play falls, and
-// losing one ends any P or S effect and clears falling capsules.
+// or M (multi-ball). The red R capsule is a bad one: it ends a P, or else
+// makes the paddle shorter for a while, and a P likewise ends an R. A life is
+// only lost when the last ball in play falls, and losing one ends any P, S or
+// R effect and clears falling capsules.
 
 #include "BricksView.h"
 #include "Sound.h"
@@ -28,7 +30,8 @@
 #define BRICKS_TOP 70.0f
 
 #define PADDLE_WIDTH 64.0f
-#define LONG_PADDLE_WIDTH 96.0f
+#define LONG_PADDLE_WIDTH 96.0f  // With P.
+#define SHORT_PADDLE_WIDTH 48.0f // With R: 25% shorter.
 #define PADDLE_HEIGHT 10.0f
 #define PADDLE_FROM_BOTTOM 50.0f
 
@@ -48,7 +51,7 @@
 #define FULL_PADDLE 0
 #endif
 
-#define POWER_UP_TICKS (15 * 60) // How long P and S last.
+#define POWER_UP_TICKS (15 * 60) // How long P, S and R last.
 
 // A broken brick splits into PIECE_COLUMNS x PIECE_ROWS pieces, which fly off
 // under gravity and fade out over PIECE_TICKS.
@@ -81,12 +84,12 @@ static const char *const fastestTicksKeys[SpeedCount] = {
     "FastestTicks", "FastestTicksFast", "FastestTicksLudicrous"};
 
 // Capsule letters and colors, in the order of the PowerUp enum.
-static const char *const powerUpLetters[PowerUpCount] = {"B", "P", "S", "M"};
+// Only R, the bad one, is red.
+static const char *const powerUpLetters[PowerUpCount] = {"B", "P", "S", "M",
+                                                         "R"};
 static const CGFloat powerUpColors[PowerUpCount][3] = {
-    {0.85f, 0.25f, 0.25f},
-    {0.25f, 0.50f, 0.95f},
-    {0.20f, 0.70f, 0.35f},
-    {0.95f, 0.55f, 0.10f},
+    {0.80f, 0.30f, 0.75f}, {0.25f, 0.50f, 0.95f}, {0.20f, 0.70f, 0.35f},
+    {0.95f, 0.55f, 0.10f}, {0.90f, 0.10f, 0.10f},
 };
 
 // A small xorshift generator. The system's rand() and arc4random() start from
@@ -156,6 +159,20 @@ static int appendTime(char *text, int length, int ticks, BOOL tenths) {
   return length;
 }
 
+// Appends an effect's letter and the seconds it has left, if it's active.
+static int appendEffect(char *text, int length, char letter, int ticksLeft) {
+  if (ticksLeft <= 0) {
+    return length;
+  }
+  if (length > 0) {
+    text[length++] = ' ';
+    text[length++] = ' ';
+  }
+  text[length++] = letter;
+  text[length++] = ' ';
+  return appendNumber(text, length, (ticksLeft + 59) / 60);
+}
+
 static NSInteger loadInteger(const char *key) {
   return [[NSUserDefaults standardUserDefaults]
       integerForKey:[NSString stringWithUTF8String:key]];
@@ -207,7 +224,10 @@ static void saveInteger(const char *key, NSInteger value) {
 #if FULL_PADDLE
   return [self width];
 #else
-  return longPaddleTicks > 0 ? LONG_PADDLE_WIDTH : PADDLE_WIDTH;
+  if (longPaddleTicks > 0) {
+    return LONG_PADDLE_WIDTH;
+  }
+  return shortPaddleTicks > 0 ? SHORT_PADDLE_WIDTH : PADDLE_WIDTH;
 #endif
 }
 
@@ -231,6 +251,7 @@ static void saveInteger(const char *key, NSInteger value) {
 // Ends the P and S effects and removes falling capsules and extra balls.
 - (void)clearPowerUps {
   longPaddleTicks = 0;
+  shortPaddleTicks = 0;
   slowTicks = 0;
   for (int i = 0; i < MAX_CAPSULES; i++) {
     capsules[i].active = NO;
@@ -292,6 +313,9 @@ static void saveInteger(const char *key, NSInteger value) {
 - (void)play {
   if (longPaddleTicks > 0 && --longPaddleTicks == 0) {
     // Back to the normal width: keep the paddle on screen.
+    [self movePaddleTo:paddleX];
+  }
+  if (shortPaddleTicks > 0 && --shortPaddleTicks == 0) {
     [self movePaddleTo:paddleX];
   }
   if (slowTicks > 0) {
@@ -485,7 +509,9 @@ static void saveInteger(const char *key, NSInteger value) {
       capsules[i].active = YES;
       capsules[i].x = centerX - CAPSULE_WIDTH / 2;
       capsules[i].y = y;
-      capsules[i].type = (PowerUp)(nextRandom() & 3);
+      // Each type equally likely. (No %: armv6/armv7 have no divide.)
+      capsules[i].type =
+          (PowerUp)(((nextRandom() & 1023) * PowerUpCount) >> 10);
       return;
     }
   }
@@ -503,7 +529,8 @@ static void saveInteger(const char *key, NSInteger value) {
                  paddleX - paddleWidth / 2, [self paddleY], paddleWidth,
                  PADDLE_HEIGHT)) {
       capsule->active = NO;
-      SoundPlay(SoundPowerUp);
+      SoundPlay(capsule->type == PowerUpShrink ? SoundPowerDown
+                                               : SoundPowerUp);
       [self applyPowerUp:capsule->type];
     } else if (capsule->y > [self height]) {
       capsule->active = NO;
@@ -519,7 +546,12 @@ static void saveInteger(const char *key, NSInteger value) {
     }
     break;
   case PowerUpPaddle:
-    longPaddleTicks = POWER_UP_TICKS;
+    // P and R cancel each other out.
+    if (shortPaddleTicks > 0) {
+      shortPaddleTicks = 0;
+    } else {
+      longPaddleTicks = POWER_UP_TICKS;
+    }
     [self movePaddleTo:paddleX];
     break;
   case PowerUpSlow:
@@ -527,6 +559,14 @@ static void saveInteger(const char *key, NSInteger value) {
     break;
   case PowerUpMulti:
     [self addBalls:2];
+    break;
+  case PowerUpShrink:
+    if (longPaddleTicks > 0) {
+      longPaddleTicks = 0;
+    } else {
+      shortPaddleTicks = POWER_UP_TICKS;
+    }
+    [self movePaddleTo:paddleX];
     break;
   default:
     break;
@@ -770,23 +810,13 @@ static void saveInteger(const char *key, NSInteger value) {
        alignment:UITextAlignmentRight
          context:context];
 
-  // Active P and S effects, with the seconds they have left, in between.
+  // Active P, R and S effects, with the seconds they have left, in between.
+  // P and R never both show, as each one ends the other.
   char effectsText[24];
   int length = 0;
-  if (longPaddleTicks > 0) {
-    effectsText[length++] = 'P';
-    effectsText[length++] = ' ';
-    length = appendNumber(effectsText, length, (longPaddleTicks + 59) / 60);
-  }
-  if (slowTicks > 0) {
-    if (length > 0) {
-      effectsText[length++] = ' ';
-      effectsText[length++] = ' ';
-    }
-    effectsText[length++] = 'S';
-    effectsText[length++] = ' ';
-    length = appendNumber(effectsText, length, (slowTicks + 59) / 60);
-  }
+  length = appendEffect(effectsText, length, 'P', longPaddleTicks);
+  length = appendEffect(effectsText, length, 'R', shortPaddleTicks);
+  length = appendEffect(effectsText, length, 'S', slowTicks);
   effectsText[length] = 0;
   if (length > 0) {
     [self drawText:effectsText

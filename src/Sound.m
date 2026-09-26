@@ -9,7 +9,7 @@
 
 // Bundle resource names, in the order of the Sound enum.
 static const char *const soundNames[SoundCount] = {"bounce", "explode",
-                                                   "powerup"};
+                                                   "powerup", "powerdown"};
 
 static ALuint sources[SoundCount];
 static BOOL loaded[SoundCount];

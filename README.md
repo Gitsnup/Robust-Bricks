@@ -4,7 +4,7 @@ A small brick-breaking game for iPhone OS 2.0 and later: one level, a random bri
 
 The title screen has a speed setting: tap it to switch between Normal, Fast (1.5×) and Ludicrous (2.5×). It also shows your fastest winning time at that speed and how many games you've played, and has a button to turn sound on or off. All of these are saved between launches, with a separate fastest time for each speed. Beat it and the win screen says NEW RECORD!
 
-Broken bricks sometimes drop a power-up. Catch it with the paddle:
+Broken bricks sometimes drop a capsule. Catch it with the paddle:
 
 | Capsule | Power-up |
 |---|---|
@@ -12,8 +12,9 @@ Broken bricks sometimes drop a power-up. Catch it with the paddle:
 | **P** | A longer paddle, for 15 seconds |
 | **S** | Slow balls (half speed), for 15 seconds |
 | **M** | Multi-ball: two more balls in play |
+| **R** | The bad one, in red: ends a **P** if you have one, otherwise a 25% shorter paddle for 15 seconds |
 
-With multi-ball, you only lose a ball when the last one in play falls. Losing a ball ends any P or S power-up.
+Catching a **P** while an **R** is shrinking the paddle just ends the **R**. With multi-ball, you only lose a ball when the last one in play falls. Losing a ball ends any P, S or R effect.
 
 It was written for [iDared 32bit](https://idared32bit-emu.com/) and [touchHLE](https://touchhle.org/), and is tested in them.
 

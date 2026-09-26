@@ -29,6 +29,7 @@ typedef enum {
   PowerUpPaddle, // P: a longer paddle, for a while.
   PowerUpSlow,   // S: half-speed balls, for a while.
   PowerUpMulti,  // M: two more balls in play at once.
+  PowerUpShrink, // R: a bad one. Ends P, or else a shorter paddle for a while.
   PowerUpCount
 } PowerUp;
 
@@ -75,7 +76,8 @@ typedef struct {
   Ball balls[MAX_BALLS_IN_PLAY];
   Capsule capsules[MAX_CAPSULES];
   Piece pieces[MAX_PIECES];
-  int longPaddleTicks; // Ticks left of the P power-up.
+  int longPaddleTicks;  // Ticks left of the P power-up.
+  int shortPaddleTicks; // Ticks left of the R power-up.
   int slowTicks;       // Ticks left of the S power-up.
 }
 - (void)tick;

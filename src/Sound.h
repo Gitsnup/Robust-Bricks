@@ -8,7 +8,13 @@
 
 #include "System.h"
 
-typedef enum { SoundBounce, SoundExplode, SoundPowerUp, SoundCount } Sound;
+typedef enum {
+  SoundBounce,
+  SoundExplode,
+  SoundPowerUp,
+  SoundPowerDown,
+  SoundCount
+} Sound;
 
 // Loads the sounds. If anything fails, the game simply stays silent.
 void SoundInit(void);
