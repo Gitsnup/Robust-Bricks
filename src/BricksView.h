@@ -83,6 +83,8 @@ typedef struct {
   int longPaddleTicks;  // Ticks left of the P power-up.
   int shortPaddleTicks; // Ticks left of the R power-up.
   int slowTicks;       // Ticks left of the S power-up.
+  int flashTicks;      // Ticks left of the paddle flash from a catch.
+  PowerUp flashType;   // The capsule caught, for the flash color.
 }
 - (void)tick;
 @end

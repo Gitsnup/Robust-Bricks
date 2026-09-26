@@ -4,7 +4,7 @@ A small brick-breaking game for iPhone OS 2.0 and later: one level, a random bri
 
 The title screen has a speed setting: tap it to switch between Normal, Fast (1.5×) and Ludicrous (2.5×). It also shows your fastest winning time at that speed and how many games you've played, and has a button to turn sound on or off. All of these are saved between launches, with a separate fastest time for each speed. Beat it and the win screen says NEW RECORD! A How to Play button opens a page explaining the controls and every capsule, with a Go Back button to return to the title screen.
 
-Broken bricks sometimes drop a capsule. Catch it with the paddle:
+Broken bricks sometimes drop a capsule. Catch it with the paddle, which flashes the capsule's color:
 
 | Capsule | Power-up |
 |---|---|

@@ -53,6 +53,8 @@
 #endif
 
 #define POWER_UP_TICKS (15 * 60) // How long P, S and R last.
+// How long the paddle flashes in a capsule's color after catching it.
+#define FLASH_TICKS 24
 
 // A broken brick splits into PIECE_COLUMNS x PIECE_ROWS pieces, which fly off
 // under gravity and fade out over PIECE_TICKS.
@@ -277,6 +279,7 @@ static void saveInteger(const char *key, NSInteger value) {
   longPaddleTicks = 0;
   shortPaddleTicks = 0;
   slowTicks = 0;
+  flashTicks = 0;
   for (int i = 0; i < MAX_CAPSULES; i++) {
     capsules[i].active = NO;
   }
@@ -337,6 +340,9 @@ static void saveInteger(const char *key, NSInteger value) {
 }
 
 - (void)play {
+  if (flashTicks > 0) {
+    flashTicks--;
+  }
   if (longPaddleTicks > 0 && --longPaddleTicks == 0) {
     // Back to the normal width: keep the paddle on screen.
     [self movePaddleTo:paddleX];
@@ -611,6 +617,8 @@ static void saveInteger(const char *key, NSInteger value) {
       SoundPlay(capsule->type == PowerUpShrink ? SoundPowerDown
                                                : SoundPowerUp);
       [self applyPowerUp:capsule->type];
+      flashTicks = FLASH_TICKS;
+      flashType = capsule->type;
     } else if (capsule->y > [self height]) {
       capsule->active = NO;
     }
@@ -1059,7 +1067,13 @@ static void saveInteger(const char *key, NSInteger value) {
   }
 
   CGFloat paddleWidth = [self paddleWidth];
-  CGContextSetRGBFillColor(context, 0.9f, 0.9f, 0.9f, 1);
+  // Normally light gray; after catching a capsule, it flashes the capsule's
+  // color and fades back.
+  CGFloat flash = (CGFloat)flashTicks / FLASH_TICKS;
+  const CGFloat *flashColor = powerUpColors[flashType];
+  CGContextSetRGBFillColor(context, 0.9f + (flashColor[0] - 0.9f) * flash,
+                           0.9f + (flashColor[1] - 0.9f) * flash,
+                           0.9f + (flashColor[2] - 0.9f) * flash, 1);
   CGContextFillRect(context,
                     CGRectMake(paddleX - paddleWidth / 2, [self paddleY],
                                paddleWidth, PADDLE_HEIGHT));
