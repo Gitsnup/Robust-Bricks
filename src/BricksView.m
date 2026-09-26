@@ -369,17 +369,24 @@ static void saveInteger(const char *key, NSInteger value) {
   ball->x += ball->dx * factor;
   ball->y += ball->dy * factor;
 
-  // Walls and ceiling.
+  // Walls and ceiling. A corner hit plays the sound once.
+  BOOL hitWall = NO;
   if (ball->x < 0) {
     ball->x = 0;
     ball->dx = absf(ball->dx);
+    hitWall = YES;
   } else if (ball->x + BALL_SIZE > [self width]) {
     ball->x = [self width] - BALL_SIZE;
     ball->dx = -absf(ball->dx);
+    hitWall = YES;
   }
   if (ball->y < 0) {
     ball->y = 0;
     ball->dy = absf(ball->dy);
+    hitWall = YES;
+  }
+  if (hitWall) {
+    SoundPlay(SoundWall);
   }
 
   // Missed: this ball is gone.

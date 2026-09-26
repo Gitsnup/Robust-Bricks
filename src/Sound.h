@@ -9,7 +9,8 @@
 #include "System.h"
 
 typedef enum {
-  SoundBounce,
+  SoundBounce, // Off the paddle.
+  SoundWall,   // Off a wall or the ceiling.
   SoundExplode,
   SoundPowerUp,
   SoundPowerDown,
