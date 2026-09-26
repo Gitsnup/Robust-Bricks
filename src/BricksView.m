@@ -7,11 +7,12 @@
 // A single level of brick breaking with a random brick layout. A title screen
 // shows the fastest winning time and the number of games played, and has
 // buttons for How to Play, the ball speed (Normal, Fast or Ludicrous) and
-// sound on or off. All of these are saved between launches, with a separate fastest time
-// for each speed. Drag anywhere to move the paddle, tap to serve. There are
-// three balls per game, and a timer runs from the first serve until the game
-// ends. Clearing every brick shows YOU WIN, losing the last ball shows GAME
-// OVER, and tapping after either starts a new game with a new layout.
+// sound on or off. All of these are saved between launches, with a separate
+// fastest time for each speed. Drag anywhere to move the paddle, tap to serve.
+// There are three balls per game, and a timer runs from the first serve until
+// the game ends. Clearing every brick shows YOU WIN, with bursts of colored
+// pieces behind it, and losing the last ball shows GAME OVER. Tapping after
+// either goes back to the title screen.
 //
 // Broken bricks sometimes drop a power-up capsule, which takes effect if the
 // paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
@@ -59,6 +60,20 @@
 #define PIECE_ROWS 2
 #define PIECE_TICKS 30
 #define PIECE_GRAVITY 0.25f // Points per tick, per tick.
+
+// Winning sets off bursts of pieces behind YOU WIN: one every
+// BURST_INTERVAL ticks, BURST_COUNT in all, or for as long as the win screen
+// shows after a new record. Each burst is BURST_PIECES pieces of one row color
+// flying out in a ring, falling slowly and fading over BURST_TICKS.
+#define BURST_INTERVAL 20
+#define BURST_COUNT 8
+#define BURST_PIECES 20
+#define BURST_TICKS 50
+#define BURST_GRAVITY 0.06f
+// cos and sin of 360/BURST_PIECES degrees, to turn each piece's direction
+// from the last one's without needing the math library.
+#define BURST_COS 0.95105652f
+#define BURST_SIN 0.30901699f
 
 // The NSUserDefaults key for the speed setting.
 #define SPEED_KEY "Speed"
@@ -313,6 +328,8 @@ static void saveInteger(const char *key, NSInteger value) {
     [self placeBallOnPaddle];
   } else if (state == StatePlaying) {
     [self play];
+  } else if (state == StateWon) {
+    [self celebrate];
   }
   // Pieces keep flying on the serve, win and game over screens too.
   [self movePieces];
@@ -456,6 +473,7 @@ static void saveInteger(const char *key, NSInteger value) {
         timerRunning = NO;
         [self clearPowerUps];
         [self recordWin];
+        celebrationTicks = 0;
       } else {
         [self maybeDropCapsuleAtX:x + BRICK_WIDTH / 2 y:y];
       }
@@ -495,9 +513,54 @@ static void saveInteger(const char *key, NSInteger value) {
       piece->dx = fromCenter * 0.12f + ball->dx * 0.3f + jitter(0.4f);
       piece->dy = -1.5f - (PIECE_ROWS - 1 - pieceRow) * 0.5f + ball->dy * 0.2f +
                   jitter(0.4f);
+      piece->gravity = PIECE_GRAVITY;
       piece->ticksLeft = PIECE_TICKS;
+      piece->lifeTicks = PIECE_TICKS;
       piece->row = row;
     }
+  }
+}
+
+- (void)celebrate {
+  celebrationTicks++;
+  // (% by a constant is fine: the compiler turns it into a multiply.)
+  if (celebrationTicks % BURST_INTERVAL == 1 &&
+      (celebrationTicks < BURST_INTERVAL * BURST_COUNT || newRecord)) {
+    [self burst];
+  }
+}
+
+// A ring of pieces from a random point, in a random row color.
+- (void)burst {
+  CGFloat width = [self width];
+  CGFloat height = [self height];
+  CGFloat x = width / 2 + jitter(width / 2 - 40);
+  CGFloat y = height * 0.4f + jitter(height * 0.3f);
+  int row = (int)(((nextRandom() & 1023) * BRICK_ROWS) >> 10);
+  CGFloat directionX = 1, directionY = 0;
+  int slot = 0;
+  for (int i = 0; i < BURST_PIECES; i++) {
+    while (slot < MAX_PIECES && pieces[slot].active) {
+      slot++;
+    }
+    if (slot == MAX_PIECES) {
+      return;
+    }
+    Piece *piece = &pieces[slot];
+    CGFloat pieceSpeed = 2.5f + jitter(1.0f);
+    piece->active = YES;
+    piece->x = x;
+    piece->y = y;
+    piece->dx = directionX * pieceSpeed;
+    piece->dy = directionY * pieceSpeed;
+    piece->gravity = BURST_GRAVITY;
+    piece->ticksLeft = BURST_TICKS;
+    piece->lifeTicks = BURST_TICKS;
+    piece->row = row;
+
+    CGFloat nextX = directionX * BURST_COS - directionY * BURST_SIN;
+    directionY = directionX * BURST_SIN + directionY * BURST_COS;
+    directionX = nextX;
   }
 }
 
@@ -509,7 +572,7 @@ static void saveInteger(const char *key, NSInteger value) {
     }
     piece->x += piece->dx;
     piece->y += piece->dy;
-    piece->dy += PIECE_GRAVITY;
+    piece->dy += piece->gravity;
     if (--piece->ticksLeft == 0) {
       piece->active = NO;
     }
@@ -873,14 +936,15 @@ static void saveInteger(const char *key, NSInteger value) {
     }
   }
 
-  // Pieces of broken bricks, fading out and shrinking towards their center.
+  // Pieces of broken bricks and bursts, fading out and shrinking towards
+  // their center.
   CGFloat pieceWidth = BRICK_WIDTH / PIECE_COLUMNS;
   CGFloat pieceHeight = BRICK_HEIGHT / PIECE_ROWS;
   for (int i = 0; i < MAX_PIECES; i++) {
     if (!pieces[i].active) {
       continue;
     }
-    CGFloat life = (CGFloat)pieces[i].ticksLeft / PIECE_TICKS;
+    CGFloat life = (CGFloat)pieces[i].ticksLeft / pieces[i].lifeTicks;
     CGFloat scale = 0.5f + 0.5f * life;
     const CGFloat *color = rowColors[pieces[i].row];
     CGContextSetRGBFillColor(context, color[0], color[1], color[2], life);

@@ -12,7 +12,7 @@
 #define MAX_BALLS_LEFT 9 // The counter shows a single digit.
 #define MAX_BALLS_IN_PLAY 8
 #define MAX_CAPSULES 6
-#define MAX_PIECES 64 // Flying pieces of broken bricks.
+#define MAX_PIECES 192 // Flying pieces of broken bricks and celebrations.
 #define TRAIL_LENGTH 6 // Earlier ball positions drawn behind each ball.
 
 typedef enum {
@@ -52,13 +52,15 @@ typedef struct {
   PowerUp type;
 } Capsule;
 
-// A piece of a broken brick, flying off and fading out.
+// A piece of a broken brick, or of a celebration burst, flying off and fading
+// out.
 typedef struct {
   BOOL active;
   CGFloat x, y; // Top-left corner.
   CGFloat dx, dy;
-  int ticksLeft;
-  int row; // Of the brick it came from, for its color.
+  CGFloat gravity; // Added to dy every tick.
+  int ticksLeft, lifeTicks;
+  int row; // The brick row whose color it has.
 } Piece;
 
 @interface BricksView : UIView {
@@ -72,6 +74,7 @@ typedef struct {
   // Fastest win at each speed, saved between launches; 0 if none yet.
   int fastestTicks[SpeedCount];
   BOOL newRecord;  // The game just won set a new fastest time.
+  int celebrationTicks; // Ticks since the game was won.
   int gamesPlayed; // Saved between launches.
   CGFloat paddleX; // Center of the paddle.
   Ball balls[MAX_BALLS_IN_PLAY];
