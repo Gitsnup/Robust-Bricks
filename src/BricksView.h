@@ -12,6 +12,7 @@
 #define MAX_BALLS_LEFT 9 // The counter shows a single digit.
 #define MAX_BALLS_IN_PLAY 8
 #define MAX_CAPSULES 6
+#define MAX_PIECES 64 // Flying pieces of broken bricks.
 
 typedef enum {
   StateTitle,
@@ -42,6 +43,15 @@ typedef struct {
   PowerUp type;
 } Capsule;
 
+// A piece of a broken brick, flying off and fading out.
+typedef struct {
+  BOOL active;
+  CGFloat x, y; // Top-left corner.
+  CGFloat dx, dy;
+  int ticksLeft;
+  int row; // Of the brick it came from, for its color.
+} Piece;
+
 @interface BricksView : UIView {
   GameState state;
   BOOL bricks[BRICK_ROWS][BRICK_COLUMNS];
@@ -54,6 +64,7 @@ typedef struct {
   CGFloat paddleX;  // Center of the paddle.
   Ball balls[MAX_BALLS_IN_PLAY];
   Capsule capsules[MAX_CAPSULES];
+  Piece pieces[MAX_PIECES];
   int longPaddleTicks; // Ticks left of the P power-up.
   int slowTicks;       // Ticks left of the S power-up.
 }

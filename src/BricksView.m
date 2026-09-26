@@ -43,6 +43,13 @@
 
 #define POWER_UP_TICKS (15 * 60) // How long P and S last.
 
+// A broken brick splits into PIECE_COLUMNS x PIECE_ROWS pieces, which fly off
+// under gravity and fade out over PIECE_TICKS.
+#define PIECE_COLUMNS 4
+#define PIECE_ROWS 2
+#define PIECE_TICKS 30
+#define PIECE_GRAVITY 0.25f // Points per tick, per tick.
+
 // The NSUserDefaults key for the fastest winning time, in ticks.
 #define FASTEST_TICKS_KEY "FastestTicks"
 
@@ -79,6 +86,11 @@ static unsigned int nextRandom(void) {
 }
 
 static CGFloat absf(CGFloat v) { return v < 0 ? -v : v; }
+
+// A random value from -amount to +amount.
+static CGFloat jitter(CGFloat amount) {
+  return ((CGFloat)(nextRandom() & 255) / 255.0f - 0.5f) * 2 * amount;
+}
 
 static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
                      CGFloat by, CGFloat bw, CGFloat bh) {
@@ -184,6 +196,9 @@ static NSString *fastestTicksKey(void) {
 - (void)resetGame {
   [self randomizeBricks];
   [self clearPowerUps];
+  for (int i = 0; i < MAX_PIECES; i++) {
+    pieces[i].active = NO;
+  }
   ballsLeft = BALLS_PER_GAME;
   timerTicks = 0;
   timerRunning = NO;
@@ -221,6 +236,8 @@ static NSString *fastestTicksKey(void) {
   } else if (state == StatePlaying) {
     [self play];
   }
+  // Pieces keep flying on the serve, win and game over screens too.
+  [self movePieces];
   [self setNeedsDisplay];
 }
 
@@ -313,6 +330,7 @@ static NSString *fastestTicksKey(void) {
       bricks[row][column] = NO;
       bricksLeft--;
       SoundPlay(SoundExplode);
+      [self shatterBrickAtX:x y:y row:row ball:ball];
 
       // Bounce off whichever side the ball went in least far.
       CGFloat overlapX =
@@ -346,6 +364,49 @@ static NSString *fastestTicksKey(void) {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
     [defaults setInteger:fastestTicks forKey:fastestTicksKey()];
     [defaults synchronize];
+  }
+}
+
+// Breaks a brick into pieces that fly away from its center, pushed a little
+// in the direction the ball was going.
+- (void)shatterBrickAtX:(CGFloat)x y:(CGFloat)y row:(int)row ball:(Ball *)ball {
+  CGFloat pieceWidth = BRICK_WIDTH / PIECE_COLUMNS;
+  CGFloat pieceHeight = BRICK_HEIGHT / PIECE_ROWS;
+  int slot = 0;
+  for (int pieceRow = 0; pieceRow < PIECE_ROWS; pieceRow++) {
+    for (int pieceColumn = 0; pieceColumn < PIECE_COLUMNS; pieceColumn++) {
+      while (slot < MAX_PIECES && pieces[slot].active) {
+        slot++;
+      }
+      if (slot == MAX_PIECES) {
+        return;
+      }
+      Piece *piece = &pieces[slot];
+      piece->active = YES;
+      piece->x = x + pieceColumn * pieceWidth;
+      piece->y = y + pieceRow * pieceHeight;
+      CGFloat fromCenter = piece->x + pieceWidth / 2 - (x + BRICK_WIDTH / 2);
+      piece->dx = fromCenter * 0.12f + ball->dx * 0.3f + jitter(0.4f);
+      piece->dy = -1.5f - (PIECE_ROWS - 1 - pieceRow) * 0.5f + ball->dy * 0.2f +
+                  jitter(0.4f);
+      piece->ticksLeft = PIECE_TICKS;
+      piece->row = row;
+    }
+  }
+}
+
+- (void)movePieces {
+  for (int i = 0; i < MAX_PIECES; i++) {
+    Piece *piece = &pieces[i];
+    if (!piece->active) {
+      continue;
+    }
+    piece->x += piece->dx;
+    piece->y += piece->dy;
+    piece->dy += PIECE_GRAVITY;
+    if (--piece->ticksLeft == 0) {
+      piece->active = NO;
+    }
   }
 }
 
@@ -544,6 +605,23 @@ static NSString *fastestTicksKey(void) {
                                 BRICK_WIDTH, BRICK_HEIGHT));
       }
     }
+  }
+
+  // Pieces of broken bricks, fading out and shrinking towards their center.
+  CGFloat pieceWidth = BRICK_WIDTH / PIECE_COLUMNS;
+  CGFloat pieceHeight = BRICK_HEIGHT / PIECE_ROWS;
+  for (int i = 0; i < MAX_PIECES; i++) {
+    if (!pieces[i].active) {
+      continue;
+    }
+    CGFloat life = (CGFloat)pieces[i].ticksLeft / PIECE_TICKS;
+    CGFloat scale = 0.5f + 0.5f * life;
+    const CGFloat *color = rowColors[pieces[i].row];
+    CGContextSetRGBFillColor(context, color[0], color[1], color[2], life);
+    CGContextFillRect(context,
+                      CGRectMake(pieces[i].x + pieceWidth * (1 - scale) / 2,
+                                 pieces[i].y + pieceHeight * (1 - scale) / 2,
+                                 pieceWidth * scale, pieceHeight * scale));
   }
 
   // Game time, in the upper left, as minutes:seconds.
