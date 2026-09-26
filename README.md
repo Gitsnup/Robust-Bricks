@@ -18,13 +18,13 @@ The ball leaves a fading trail, boops off the paddle and ticks off the walls and
 
 ## Title screen
 
-The title screen shows your fastest winning time at the chosen speed and how many games you've played. Tap anywhere except the buttons to play. The buttons are:
+The title screen shows your fastest winning time and how many games you've played, both at the chosen speed. Tap anywhere except the buttons to play. The buttons are:
 
 - **How to Play**: a page explaining the controls and every capsule, with a **Go Back** button to return to the title screen.
 - **Speed**: switches between Normal, Fast (1.5×) and Ludicrous (2.5×).
 - **Sound**: turns sound on or off.
 
-The speed, the sound setting, the fastest times (one for each speed) and the number of games played are all saved between launches.
+The speed, the sound setting, the fastest times and the numbers of games played (one of each for each speed) are all saved between launches.
 
 ## Capsules
 

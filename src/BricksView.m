@@ -6,13 +6,13 @@
 
 // A single level of brick breaking with a random brick layout. A title screen
 // shows the fastest winning time and the number of games played, and has
-// buttons for How to Play, the ball speed (Normal, Fast or Ludicrous) and
-// sound on or off. All of these are saved between launches, with a separate
-// fastest time for each speed. Drag anywhere to move the paddle, tap to serve.
-// There are three balls per game, and a timer runs from the first serve until
-// the game ends. Clearing every brick shows YOU WIN, with bursts of colored
-// pieces behind it, and losing the last ball shows GAME OVER with the number
-// of bricks left. Tapping after either goes back to the title screen.
+// buttons for How to Play, the ball speed (Normal, Fast or Ludicrous) and sound
+// on or off. All of these are saved between launches, with a separate fastest
+// time and games played count for each speed. Drag anywhere to move the paddle,
+// tap to serve. There are three balls per game, and a timer runs from the first
+// serve until the game ends. Clearing every brick shows YOU WIN, with bursts of
+// colored pieces behind it, and losing the last ball shows GAME OVER with the
+// number of bricks left. Tapping after either goes back to the title screen.
 //
 // Broken bricks sometimes drop a power-up capsule, which takes effect if the
 // paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
@@ -79,8 +79,6 @@
 
 // The NSUserDefaults key for the speed setting.
 #define SPEED_KEY "Speed"
-// The NSUserDefaults key for the number of games started.
-#define GAMES_PLAYED_KEY "GamesPlayed"
 // The NSUserDefaults key for turning sound off. Sound is on by default, when
 // the key is missing.
 #define SOUND_OFF_KEY "SoundOff"
@@ -92,13 +90,17 @@ static const CGFloat rowColors[BRICK_ROWS][3] = {
 };
 
 // Speed names, ball speed multipliers and the NSUserDefaults keys for the
-// fastest winning time (in ticks), in the order of the Speed enum. Normal
-// keeps the key from before there was a speed setting.
+// fastest winning time (in ticks) and the number of games started, in the
+// order of the Speed enum. Normal keeps the keys from before there was a speed
+// setting, and so also the games played count from 1.0, which was for all
+// speeds together.
 static const char *const speedNames[SpeedCount] = {"Normal", "Fast",
                                                    "Ludicrous"};
 static const CGFloat speedMultipliers[SpeedCount] = {1.0f, 1.5f, 2.5f};
 static const char *const fastestTicksKeys[SpeedCount] = {
     "FastestTicks", "FastestTicksFast", "FastestTicksLudicrous"};
+static const char *const gamesPlayedKeys[SpeedCount] = {
+    "GamesPlayed", "GamesPlayedFast", "GamesPlayedLudicrous"};
 
 // Capsule letters and colors, in the order of the PowerUp enum.
 // Only R, the bad one, is red.
@@ -216,11 +218,11 @@ static void saveInteger(const char *key, NSInteger value) {
   if ((self = [super initWithFrame:frame])) {
     for (int i = 0; i < SpeedCount; i++) {
       fastestTicks[i] = (int)loadInteger(fastestTicksKeys[i]);
+      gamesPlayed[i] = (int)loadInteger(gamesPlayedKeys[i]);
     }
     NSInteger savedSpeed = loadInteger(SPEED_KEY);
     speed = savedSpeed >= 0 && savedSpeed < SpeedCount ? (Speed)savedSpeed
                                                        : SpeedNormal;
-    gamesPlayed = (int)loadInteger(GAMES_PLAYED_KEY);
     SoundSetEnabled(!loadInteger(SOUND_OFF_KEY));
     [self resetGame];
     state = StateTitle;
@@ -717,8 +719,8 @@ static void saveInteger(const char *key, NSInteger value) {
     saveInteger(SOUND_OFF_KEY, !enabled);
     SoundPlay(SoundBounce); // Only heard when turning sound on.
   } else if (state == StateTitle) {
-    gamesPlayed++;
-    saveInteger(GAMES_PLAYED_KEY, gamesPlayed);
+    gamesPlayed[speed]++;
+    saveInteger(gamesPlayedKeys[speed], gamesPlayed[speed]);
     [self resetGame];
   } else if (state == StateWon || state == StateLost) {
     state = StateTitle;
@@ -812,7 +814,7 @@ static void saveInteger(const char *key, NSInteger value) {
          context:context];
 
   char playedText[32] = "Games played: ";
-  playedText[appendNumber(playedText, 14, gamesPlayed)] = 0;
+  playedText[appendNumber(playedText, 14, gamesPlayed[speed])] = 0;
   [self drawText:playedText
           inRect:CGRectMake(0, height * 0.44f + 30, width, 24)
         fontSize:16
