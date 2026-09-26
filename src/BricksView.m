@@ -43,6 +43,11 @@
 #define CAPSULE_CHANCE 171
 #endif
 
+// For testing: 1 makes the paddle as wide as the screen, so no ball is lost.
+#ifndef FULL_PADDLE
+#define FULL_PADDLE 0
+#endif
+
 #define POWER_UP_TICKS (15 * 60) // How long P and S last.
 
 // A broken brick splits into PIECE_COLUMNS x PIECE_ROWS pieces, which fly off
@@ -199,7 +204,11 @@ static void saveInteger(const char *key, NSInteger value) {
 }
 
 - (CGFloat)paddleWidth {
+#if FULL_PADDLE
+  return [self width];
+#else
   return longPaddleTicks > 0 ? LONG_PADDLE_WIDTH : PADDLE_WIDTH;
+#endif
 }
 
 // A random layout, mirrored left to right so it looks deliberate. Each brick

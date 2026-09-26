@@ -49,6 +49,17 @@ make SDK=/path/to/common-3.0.sdk CAPSULE_CHANCE=1024
 
 `CAPSULE_CHANCE` is the chance out of 1024 (the default is 171). Run `make clean` before switching between this and a normal build, so the game is rebuilt with the new setting.
 
+### Testing without losing
+
+To play through to the win screen without any risk of losing a ball, build a version where the paddle is as wide as the screen:
+
+```
+make clean
+make SDK=/path/to/common-3.0.sdk FULL_PADDLE=true
+```
+
+The default is `FULL_PADDLE=false`. As with `CAPSULE_CHANCE`, run `make clean` when switching, and the two can be combined. Winning times from this build are saved like any others, so they'll show up as the fastest times until the app's data is cleared.
+
 ### Notes
 
 The game doesn't use any SDK headers: the few system APIs it needs are declared in `src/System.h`.

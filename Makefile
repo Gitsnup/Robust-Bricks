@@ -10,6 +10,8 @@
 #
 # The result is build/DaredBricks.ipa. For a build where every broken brick
 # drops a power-up, for testing them: make clean; make SDK=... CAPSULE_CHANCE=1024
+# For a build where the paddle is as wide as the screen, so no ball is ever
+# lost: make clean; make SDK=... FULL_PADDLE=true
 
 CLANG ?= clang
 BUILD := build
@@ -32,6 +34,10 @@ CFLAGS := \
 # For testing power-ups: CAPSULE_CHANCE=1024 makes every broken brick drop one.
 ifdef CAPSULE_CHANCE
 CFLAGS += -DCAPSULE_CHANCE=$(CAPSULE_CHANCE)
+endif
+# For testing: FULL_PADDLE=true makes the paddle as wide as the screen.
+ifeq ($(FULL_PADDLE),true)
+CFLAGS += -DFULL_PADDLE=1
 endif
 LIBS := \
 	-framework UIKit -framework Foundation -framework CoreGraphics \
