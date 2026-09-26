@@ -1,6 +1,8 @@
 # Dared Bricks
 
-A small brick-breaking game for iPhone OS 2.0 and later: one level, a random brick layout each game, three balls, and a timer to beat. Drag anywhere to move the paddle and tap to serve. Clear every brick to see YOU WIN; lose the last ball and it's GAME OVER. Either way, tap to play again with a new layout. The ball boops off the paddle and bricks break with a crunch.
+A small brick-breaking game for iPhone OS 2.0 and later: one level, a random brick layout each game, three balls, and a timer to beat. Drag anywhere to move the paddle and tap to serve. Clear every brick to see YOU WIN; lose the last ball and it's GAME OVER. Either way, tap to return to the title screen, and tap again to play a new layout. The ball boops off the paddle and bricks break with a crunch.
+
+The title screen shows your fastest winning time, which is saved between launches. Beat it and the win screen says NEW RECORD!
 
 Broken bricks sometimes drop a power-up. Catch it with the paddle:
 

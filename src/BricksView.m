@@ -4,11 +4,12 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// A single level of brick breaking with a random brick layout. Drag anywhere to
-// move the paddle, tap to serve. There are three balls per game, and a timer
-// runs from the first serve until the game ends. Clearing every brick shows YOU
-// WIN, losing the last ball shows GAME OVER, and tapping after either starts a
-// new game with a new layout.
+// A single level of brick breaking with a random brick layout. A title screen
+// shows the fastest winning time, which is saved between launches. Drag
+// anywhere to move the paddle, tap to serve. There are three balls per game,
+// and a timer runs from the first serve until the game ends. Clearing every
+// brick shows YOU WIN, losing the last ball shows GAME OVER, and tapping after
+// either starts a new game with a new layout.
 //
 // Broken bricks sometimes drop a power-up capsule, which takes effect if the
 // paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
@@ -41,6 +42,9 @@
 #endif
 
 #define POWER_UP_TICKS (15 * 60) // How long P and S last.
+
+// The NSUserDefaults key for the fastest winning time, in ticks.
+#define FASTEST_TICKS_KEY "FastestTicks"
 
 // One color per row, top to bottom.
 static const CGFloat rowColors[BRICK_ROWS][3] = {
@@ -95,11 +99,33 @@ static int appendNumber(char *text, int length, int number) {
   return length;
 }
 
+// Appends a time in ticks as minutes:seconds, or minutes:seconds.tenths.
+static int appendTime(char *text, int length, int ticks, BOOL tenths) {
+  int seconds = ticks / 60;
+  length = appendNumber(text, length, seconds / 60);
+  text[length++] = ':';
+  text[length++] = (char)('0' + (seconds % 60) / 10);
+  text[length++] = (char)('0' + seconds % 10);
+  if (tenths) {
+    text[length++] = '.';
+    text[length++] = (char)('0' + (ticks % 60) / 6);
+  }
+  text[length] = 0;
+  return length;
+}
+
+static NSString *fastestTicksKey(void) {
+  return [NSString stringWithUTF8String:FASTEST_TICKS_KEY];
+}
+
 @implementation BricksView
 
 - (instancetype)initWithFrame:(CGRect)frame {
   if ((self = [super initWithFrame:frame])) {
+    fastestTicks = (int)[[NSUserDefaults standardUserDefaults]
+        integerForKey:fastestTicksKey()];
     [self resetGame];
+    state = StateTitle;
   }
   return self;
 }
@@ -161,6 +187,7 @@ static int appendNumber(char *text, int length, int number) {
   ballsLeft = BALLS_PER_GAME;
   timerTicks = 0;
   timerRunning = NO;
+  newRecord = NO;
   paddleX = [self width] / 2;
   state = StateServing;
   [self placeBallOnPaddle];
@@ -302,11 +329,23 @@ static int appendNumber(char *text, int length, int number) {
         state = StateWon;
         timerRunning = NO;
         [self clearPowerUps];
+        [self recordWin];
       } else {
         [self maybeDropCapsuleAtX:x + BRICK_WIDTH / 2 y:y];
       }
       return;
     }
+  }
+}
+
+// Saves the time if it's the fastest win so far.
+- (void)recordWin {
+  newRecord = fastestTicks == 0 || timerTicks < fastestTicks;
+  if (newRecord) {
+    fastestTicks = timerTicks;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults setInteger:fastestTicks forKey:fastestTicksKey()];
+    [defaults synchronize];
   }
 }
 
@@ -399,8 +438,10 @@ static int appendNumber(char *text, int length, int number) {
     balls[0].dy = -BALL_SPEED;
     state = StatePlaying;
     timerRunning = YES;
-  } else if (state == StateWon || state == StateLost) {
+  } else if (state == StateTitle) {
     [self resetGame];
+  } else if (state == StateWon || state == StateLost) {
+    state = StateTitle;
   }
 }
 
@@ -433,6 +474,51 @@ static int appendNumber(char *text, int length, int number) {
          context:context];
 }
 
+- (void)drawTitleWithContext:(CGContextRef)context {
+  CGFloat width = [self width];
+  CGFloat height = [self height];
+
+  [self drawText:"DARED"
+          inRect:CGRectMake(0, height * 0.22f, width, 50)
+        fontSize:44
+         context:context];
+  [self drawText:"BRICKS"
+          inRect:CGRectMake(0, height * 0.22f + 48, width, 50)
+        fontSize:44
+         context:context];
+
+  // A strip of bricks in the row colors.
+  CGFloat brickWidth = 36, gap = 6;
+  CGFloat stripLeft =
+      (width - BRICK_ROWS * brickWidth - (BRICK_ROWS - 1) * gap) / 2;
+  for (int i = 0; i < BRICK_ROWS; i++) {
+    CGContextSetRGBFillColor(context, rowColors[i][0], rowColors[i][1],
+                             rowColors[i][2], 1);
+    CGContextFillRect(context, CGRectMake(stripLeft + i * (brickWidth + gap),
+                                          height * 0.22f + 112, brickWidth,
+                                          BRICK_HEIGHT));
+  }
+
+  if (fastestTicks > 0) {
+    char text[32] = "Fastest time: ";
+    appendTime(text, 14, fastestTicks, YES);
+    [self drawText:text
+            inRect:CGRectMake(0, height * 0.55f, width, 26)
+          fontSize:20
+           context:context];
+  } else {
+    [self drawText:"No fastest time yet"
+            inRect:CGRectMake(0, height * 0.55f, width, 26)
+          fontSize:20
+           context:context];
+  }
+
+  [self drawText:"Tap to play"
+          inRect:CGRectMake(0, height * 0.72f, width, 30)
+        fontSize:22
+         context:context];
+}
+
 - (void)drawRect:(CGRect)rect {
   CGContextRef context = UIGraphicsGetCurrentContext();
   CGFloat width = [self width];
@@ -440,6 +526,11 @@ static int appendNumber(char *text, int length, int number) {
 
   CGContextSetRGBFillColor(context, 0, 0, 0, 1);
   CGContextFillRect(context, [self bounds]);
+
+  if (state == StateTitle) {
+    [self drawTitleWithContext:context];
+    return;
+  }
 
   CGFloat left = [self bricksLeftEdge];
   for (int row = 0; row < BRICK_ROWS; row++) {
@@ -457,12 +548,7 @@ static int appendNumber(char *text, int length, int number) {
 
   // Game time, in the upper left, as minutes:seconds.
   char timeText[24] = "Time: ";
-  int seconds = timerTicks / 60;
-  int length = appendNumber(timeText, 6, seconds / 60);
-  timeText[length++] = ':';
-  timeText[length++] = (char)('0' + (seconds % 60) / 10);
-  timeText[length++] = (char)('0' + seconds % 10);
-  timeText[length] = 0;
+  appendTime(timeText, 6, timerTicks, NO);
   [self drawText:timeText
           inRect:CGRectMake(10, 20, 150, 24)
         fontSize:16
@@ -480,7 +566,7 @@ static int appendNumber(char *text, int length, int number) {
 
   // Active P and S effects, with the seconds they have left, in between.
   char effectsText[24];
-  length = 0;
+  int length = 0;
   if (longPaddleTicks > 0) {
     effectsText[length++] = 'P';
     effectsText[length++] = ' ';
@@ -503,12 +589,42 @@ static int appendNumber(char *text, int length, int number) {
            context:context];
   }
 
-  if (state == StateWon || state == StateLost) {
-    [self drawText:(state == StateWon ? "YOU WIN" : "GAME OVER")
+  if (state == StateWon) {
+    [self drawText:"YOU WIN"
+            inRect:CGRectMake(0, height / 2 - 60, width, 50)
+          fontSize:40
+           context:context];
+    char text[32] = "Your time: ";
+    appendTime(text, 11, timerTicks, YES);
+    [self drawText:text
+            inRect:CGRectMake(0, height / 2, width, 26)
+          fontSize:20
+           context:context];
+    if (newRecord) {
+      [self drawText:"NEW RECORD!"
+              inRect:CGRectMake(0, height / 2 + 30, width, 30)
+            fontSize:24
+             context:context];
+    } else {
+      char fastest[32] = "Fastest: ";
+      appendTime(fastest, 9, fastestTicks, YES);
+      [self drawText:fastest
+              inRect:CGRectMake(0, height / 2 + 32, width, 26)
+            fontSize:18
+             context:context];
+    }
+    [self drawText:"Tap to continue"
+            inRect:CGRectMake(0, height / 2 + 90, width, 30)
+          fontSize:18
+           context:context];
+    return;
+  }
+  if (state == StateLost) {
+    [self drawText:"GAME OVER"
             inRect:CGRectMake(0, height / 2 - 40, width, 50)
           fontSize:40
            context:context];
-    [self drawText:"Tap to play again"
+    [self drawText:"Tap to continue"
             inRect:CGRectMake(0, height / 2 + 20, width, 30)
           fontSize:18
            context:context];

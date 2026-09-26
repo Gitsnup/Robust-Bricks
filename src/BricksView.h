@@ -13,7 +13,13 @@
 #define MAX_BALLS_IN_PLAY 8
 #define MAX_CAPSULES 6
 
-typedef enum { StateServing, StatePlaying, StateWon, StateLost } GameState;
+typedef enum {
+  StateTitle,
+  StateServing,
+  StatePlaying,
+  StateWon,
+  StateLost
+} GameState;
 
 // What a falling capsule does when the paddle catches it.
 typedef enum {
@@ -43,7 +49,9 @@ typedef struct {
   int ballsLeft;  // Including the ones in play.
   int timerTicks; // Game time, in ticks of 1/60 s.
   BOOL timerRunning;
-  CGFloat paddleX; // Center of the paddle.
+  int fastestTicks; // Fastest win, saved between launches; 0 if none yet.
+  BOOL newRecord;   // The game just won set a new fastest time.
+  CGFloat paddleX;  // Center of the paddle.
   Ball balls[MAX_BALLS_IN_PLAY];
   Capsule capsules[MAX_CAPSULES];
   int longPaddleTicks; // Ticks left of the P power-up.

@@ -19,6 +19,7 @@ typedef signed char BOOL;
 #define nil ((id)0)
 
 typedef unsigned int NSUInteger;
+typedef int NSInteger;
 typedef double NSTimeInterval;
 
 // Core Graphics
@@ -92,6 +93,13 @@ unsigned long long mach_absolute_time(void);
 @interface NSBundle : NSObject
 + (NSBundle *)mainBundle;
 - (NSString *)pathForResource:(NSString *)name ofType:(NSString *)extension;
+@end
+
+@interface NSUserDefaults : NSObject
++ (NSUserDefaults *)standardUserDefaults;
+- (NSInteger)integerForKey:(NSString *)key;
+- (void)setInteger:(NSInteger)value forKey:(NSString *)key;
+- (BOOL)synchronize;
 @end
 
 @interface NSSet : NSObject
