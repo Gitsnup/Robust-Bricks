@@ -1,12 +1,36 @@
 # Dared Bricks
 
-A small brick-breaking game for iPhone OS 2.0 and later: one level, a random brick layout each game, three balls, and a timer to beat. Drag anywhere to move the paddle and tap to serve. Clear every brick to see YOU WIN, with bursts of colored pieces going off behind it (and they keep going off for a new record); lose the last ball and it's GAME OVER. Either way, tap to return to the title screen, and tap again to play a new layout. The ball leaves a fading trail, boops off the paddle, ticks off the walls and ceiling, and bricks shatter into flying pieces with a crunch.
+A small brick-breaking game for iPhone OS 2.0 and later. There's one level, with a new random brick layout each game, three balls, and a timer to beat.
 
-The title screen has a speed setting: tap it to switch between Normal, Fast (1.5×) and Ludicrous (2.5×). It also shows your fastest winning time at that speed and how many games you've played, and has a button to turn sound on or off. All of these are saved between launches, with a separate fastest time for each speed. Beat it and the win screen says NEW RECORD! A How to Play button opens a page explaining the controls and every capsule, with a Go Back button to return to the title screen.
+It was written for [iDared 32bit](https://idared32bit-emu.com/) and [touchHLE](https://touchhle.org/), and is tested in them.
+
+Made by [apexad](https://github.com/apexad).
+
+## How it plays
+
+Drag anywhere to move the paddle, and tap to serve. The timer starts with your first serve.
+
+- Clear every brick and it's YOU WIN, with bursts of colored pieces going off behind it. If that's a new fastest time, it also says NEW RECORD! and the bursts keep going.
+- Lose the last ball and it's GAME OVER.
+- Either way, tap to go back to the title screen.
+
+The ball leaves a fading trail, boops off the paddle and ticks off the walls and ceiling, and bricks shatter into flying pieces with a crunch.
+
+## Title screen
+
+The title screen shows your fastest winning time at the chosen speed and how many games you've played. Tap anywhere except the buttons to play. The buttons are:
+
+- **How to Play**: a page explaining the controls and every capsule, with a **Go Back** button to return to the title screen.
+- **Speed**: switches between Normal, Fast (1.5×) and Ludicrous (2.5×).
+- **Sound**: turns sound on or off.
+
+The speed, the sound setting, the fastest times (one for each speed) and the number of games played are all saved between launches.
+
+## Capsules
 
 Broken bricks sometimes drop a capsule. Catch it with the paddle, which flashes the capsule's color:
 
-| Capsule | Power-up |
+| Capsule | Effect |
 |---|---|
 | **B** | One more ball |
 | **P** | A longer paddle, for 15 seconds |
@@ -14,11 +38,7 @@ Broken bricks sometimes drop a capsule. Catch it with the paddle, which flashes 
 | **M** | Multi-ball: two more balls in play |
 | **R** | The bad one, in red: ends a **P** if you have one, otherwise a 25% shorter paddle for 15 seconds |
 
-Catching a **P** while an **R** is shrinking the paddle just ends the **R**. With multi-ball, you only lose a ball when the last one in play falls. Losing a ball ends any P, S or R effect.
-
-It was written for [iDared 32bit](https://idared32bit-emu.com/) and [touchHLE](https://touchhle.org/), and is tested in them.
-
-Made by [apexad](https://github.com/apexad).
+P and R cancel each other out, so catching a **P** while an **R** is shrinking the paddle just ends the **R**. With multi-ball, you only lose a ball when the last one in play falls. Losing a ball ends any P, S or R effect.
 
 ## Playing
 
@@ -39,9 +59,9 @@ make SDK=/path/to/common-3.0.sdk
 
 This builds `build/DaredBricks.ipa`, for armv6 and armv7. That one file is the whole app; `make clean` removes it.
 
-### Testing power-ups
+### Testing capsules
 
-Normally about one broken brick in six drops a power-up. To try them all quickly, build a version where every broken brick drops one:
+Normally about one broken brick in six drops a capsule. To try them all quickly, build a version where every broken brick drops one:
 
 ```
 make clean
