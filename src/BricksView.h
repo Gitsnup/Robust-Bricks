@@ -61,6 +61,7 @@ typedef struct {
   BOOL timerRunning;
   int fastestTicks; // Fastest win, saved between launches; 0 if none yet.
   BOOL newRecord;   // The game just won set a new fastest time.
+  int gamesPlayed;  // Saved between launches.
   CGFloat paddleX;  // Center of the paddle.
   Ball balls[MAX_BALLS_IN_PLAY];
   Capsule capsules[MAX_CAPSULES];

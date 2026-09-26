@@ -5,7 +5,8 @@
  */
 
 // A single level of brick breaking with a random brick layout. A title screen
-// shows the fastest winning time, which is saved between launches. Drag
+// shows the fastest winning time and the number of games played, which are
+// saved between launches. Drag
 // anywhere to move the paddle, tap to serve. There are three balls per game,
 // and a timer runs from the first serve until the game ends. Clearing every
 // brick shows YOU WIN, losing the last ball shows GAME OVER, and tapping after
@@ -52,6 +53,8 @@
 
 // The NSUserDefaults key for the fastest winning time, in ticks.
 #define FASTEST_TICKS_KEY "FastestTicks"
+// The NSUserDefaults key for the number of games started.
+#define GAMES_PLAYED_KEY "GamesPlayed"
 
 // One color per row, top to bottom.
 static const CGFloat rowColors[BRICK_ROWS][3] = {
@@ -126,16 +129,23 @@ static int appendTime(char *text, int length, int ticks, BOOL tenths) {
   return length;
 }
 
-static NSString *fastestTicksKey(void) {
-  return [NSString stringWithUTF8String:FASTEST_TICKS_KEY];
+static NSInteger loadInteger(const char *key) {
+  return [[NSUserDefaults standardUserDefaults]
+      integerForKey:[NSString stringWithUTF8String:key]];
+}
+
+static void saveInteger(const char *key, NSInteger value) {
+  NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+  [defaults setInteger:value forKey:[NSString stringWithUTF8String:key]];
+  [defaults synchronize];
 }
 
 @implementation BricksView
 
 - (instancetype)initWithFrame:(CGRect)frame {
   if ((self = [super initWithFrame:frame])) {
-    fastestTicks = (int)[[NSUserDefaults standardUserDefaults]
-        integerForKey:fastestTicksKey()];
+    fastestTicks = (int)loadInteger(FASTEST_TICKS_KEY);
+    gamesPlayed = (int)loadInteger(GAMES_PLAYED_KEY);
     [self resetGame];
     state = StateTitle;
   }
@@ -361,9 +371,7 @@ static NSString *fastestTicksKey(void) {
   newRecord = fastestTicks == 0 || timerTicks < fastestTicks;
   if (newRecord) {
     fastestTicks = timerTicks;
-    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    [defaults setInteger:fastestTicks forKey:fastestTicksKey()];
-    [defaults synchronize];
+    saveInteger(FASTEST_TICKS_KEY, fastestTicks);
   }
 }
 
@@ -500,6 +508,8 @@ static NSString *fastestTicksKey(void) {
     state = StatePlaying;
     timerRunning = YES;
   } else if (state == StateTitle) {
+    gamesPlayed++;
+    saveInteger(GAMES_PLAYED_KEY, gamesPlayed);
     [self resetGame];
   } else if (state == StateWon || state == StateLost) {
     state = StateTitle;
@@ -573,6 +583,13 @@ static NSString *fastestTicksKey(void) {
           fontSize:20
            context:context];
   }
+
+  char playedText[32] = "Games played: ";
+  playedText[appendNumber(playedText, 14, gamesPlayed)] = 0;
+  [self drawText:playedText
+          inRect:CGRectMake(0, height * 0.55f + 32, width, 24)
+        fontSize:16
+         context:context];
 
   [self drawText:"Tap to play"
           inRect:CGRectMake(0, height * 0.72f, width, 30)
