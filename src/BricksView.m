@@ -11,8 +11,8 @@
 // fastest time for each speed. Drag anywhere to move the paddle, tap to serve.
 // There are three balls per game, and a timer runs from the first serve until
 // the game ends. Clearing every brick shows YOU WIN, with bursts of colored
-// pieces behind it, and losing the last ball shows GAME OVER. Tapping after
-// either goes back to the title screen.
+// pieces behind it, and losing the last ball shows GAME OVER with the number
+// of bricks left. Tapping after either goes back to the title screen.
 //
 // Broken bricks sometimes drop a power-up capsule, which takes effect if the
 // paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
@@ -1030,11 +1030,20 @@ static void saveInteger(const char *key, NSInteger value) {
   }
   if (state == StateLost) {
     [self drawText:"GAME OVER"
-            inRect:CGRectMake(0, height / 2 - 40, width, 50)
+            inRect:CGRectMake(0, height / 2 - 60, width, 50)
           fontSize:40
            context:context];
+    // How close it was: "1 brick left" or "12 bricks left".
+    char leftText[24];
+    int leftLength = appendNumber(leftText, 0, bricksLeft);
+    appendString(leftText, leftLength,
+                 bricksLeft == 1 ? " brick left" : " bricks left");
+    [self drawText:leftText
+            inRect:CGRectMake(0, height / 2, width, 26)
+          fontSize:20
+           context:context];
     [self drawText:"Tap to continue"
-            inRect:CGRectMake(0, height / 2 + 20, width, 30)
+            inRect:CGRectMake(0, height / 2 + 90, width, 30)
           fontSize:18
            context:context];
     return;

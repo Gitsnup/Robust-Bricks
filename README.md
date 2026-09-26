@@ -11,7 +11,7 @@ Made by [apexad](https://github.com/apexad).
 Drag anywhere to move the paddle, and tap to serve. The timer starts with your first serve.
 
 - Clear every brick and it's YOU WIN, with bursts of colored pieces going off behind it. If that's a new fastest time, it also says NEW RECORD! and the bursts keep going.
-- Lose the last ball and it's GAME OVER.
+- Lose the last ball and it's GAME OVER, with how many bricks were left.
 - Either way, tap to go back to the title screen.
 
 The ball leaves a fading trail, boops off the paddle and ticks off the walls and ceiling, and bricks shatter into flying pieces with a crunch.
