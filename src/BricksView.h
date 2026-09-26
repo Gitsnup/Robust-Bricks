@@ -17,6 +17,7 @@
 
 typedef enum {
   StateTitle,
+  StateHowToPlay,
   StateServing,
   StatePlaying,
   StateWon,

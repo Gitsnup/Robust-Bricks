@@ -6,8 +6,8 @@
 
 // A single level of brick breaking with a random brick layout. A title screen
 // shows the fastest winning time and the number of games played, and has
-// buttons for the ball speed (Normal, Fast or Ludicrous) and for sound on or
-// off. All of these are saved between launches, with a separate fastest time
+// buttons for How to Play, the ball speed (Normal, Fast or Ludicrous) and
+// sound on or off. All of these are saved between launches, with a separate fastest time
 // for each speed. Drag anywhere to move the paddle, tap to serve. There are
 // three balls per game, and a timer runs from the first serve until the game
 // ends. Clearing every brick shows YOU WIN, losing the last ball shows GAME
@@ -90,6 +90,15 @@ static const char *const powerUpLetters[PowerUpCount] = {"B", "P", "S", "M",
 static const CGFloat powerUpColors[PowerUpCount][3] = {
     {0.80f, 0.30f, 0.75f}, {0.25f, 0.50f, 0.95f}, {0.20f, 0.70f, 0.35f},
     {0.95f, 0.55f, 0.10f}, {0.90f, 0.10f, 0.10f},
+};
+
+// What each capsule does, for the How to Play screen.
+static const char *const powerUpDescriptions[PowerUpCount] = {
+    "One more ball",
+    "A longer paddle for 15 seconds",
+    "Slower balls for 15 seconds",
+    "Two more balls in play at once",
+    "Bad! A shorter paddle for 15 seconds",
 };
 
 // A small xorshift generator. The system's rand() and arc4random() start from
@@ -613,6 +622,17 @@ static void saveInteger(const char *key, NSInteger value) {
     state = StatePlaying;
     timerRunning = YES;
   } else if (state == StateTitle &&
+             [self button:[self howToPlayButtonFrame]
+                 contains:[touch locationInView:self]]) {
+    state = StateHowToPlay;
+    SoundPlay(SoundBounce);
+  } else if (state == StateHowToPlay) {
+    if ([self button:[self goBackButtonFrame]
+            contains:[touch locationInView:self]]) {
+      state = StateTitle;
+      SoundPlay(SoundBounce);
+    }
+  } else if (state == StateTitle &&
              [self button:[self speedButtonFrame]
                  contains:[touch locationInView:self]]) {
     speed = speed + 1 < SpeedCount ? (Speed)(speed + 1) : SpeedNormal;
@@ -634,11 +654,20 @@ static void saveInteger(const char *key, NSInteger value) {
   }
 }
 
+- (CGRect)howToPlayButtonFrame {
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.66f, 200, 36);
+}
+
 - (CGRect)speedButtonFrame {
-  return CGRectMake([self width] / 2 - 100, [self height] * 0.76f, 200, 36);
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.75f, 200, 36);
 }
 
 - (CGRect)soundButtonFrame {
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.84f, 200, 36);
+}
+
+// On the How to Play screen.
+- (CGRect)goBackButtonFrame {
   return CGRectMake([self width] / 2 - 100, [self height] * 0.86f, 200, 36);
 }
 
@@ -683,11 +712,11 @@ static void saveInteger(const char *key, NSInteger value) {
   CGFloat height = [self height];
 
   [self drawText:"DARED"
-          inRect:CGRectMake(0, height * 0.22f, width, 50)
+          inRect:CGRectMake(0, height * 0.14f, width, 50)
         fontSize:44
          context:context];
   [self drawText:"BRICKS"
-          inRect:CGRectMake(0, height * 0.22f + 48, width, 50)
+          inRect:CGRectMake(0, height * 0.14f + 48, width, 50)
         fontSize:44
          context:context];
 
@@ -699,7 +728,7 @@ static void saveInteger(const char *key, NSInteger value) {
     CGContextSetRGBFillColor(context, rowColors[i][0], rowColors[i][1],
                              rowColors[i][2], 1);
     CGContextFillRect(context, CGRectMake(stripLeft + i * (brickWidth + gap),
-                                          height * 0.22f + 112, brickWidth,
+                                          height * 0.14f + 112, brickWidth,
                                           BRICK_HEIGHT));
   }
 
@@ -707,28 +736,86 @@ static void saveInteger(const char *key, NSInteger value) {
   char text[48];
   [self fastestText:text];
   [self drawText:text
-          inRect:CGRectMake(0, height * 0.52f, width, 26)
+          inRect:CGRectMake(0, height * 0.44f, width, 26)
         fontSize:18
          context:context];
 
   char playedText[32] = "Games played: ";
   playedText[appendNumber(playedText, 14, gamesPlayed)] = 0;
   [self drawText:playedText
-          inRect:CGRectMake(0, height * 0.52f + 30, width, 24)
+          inRect:CGRectMake(0, height * 0.44f + 30, width, 24)
         fontSize:16
          context:context];
 
   [self drawText:"Tap to play"
-          inRect:CGRectMake(0, height * 0.65f, width, 30)
+          inRect:CGRectMake(0, height * 0.56f, width, 30)
         fontSize:22
          context:context];
 
+  [self drawButton:[self howToPlayButtonFrame]
+              text:"How to Play"
+           context:context];
   char speedText[32] = "Speed: ";
   appendString(speedText, 7, speedNames[speed]);
   [self drawButton:[self speedButtonFrame] text:speedText context:context];
   [self drawButton:[self soundButtonFrame]
               text:(SoundIsEnabled() ? "Sound: On" : "Sound: Off")
            context:context];
+}
+
+- (void)drawHowToPlayWithContext:(CGContextRef)context {
+  CGFloat width = [self width];
+
+  [self drawText:"HOW TO PLAY"
+          inRect:CGRectMake(0, 24, width, 36)
+        fontSize:28
+         context:context];
+  [self drawText:"Drag anywhere to move the paddle, and tap to serve. Clear "
+                 "every brick to win. You have three balls, and the clock "
+                 "runs from your first serve."
+          inRect:CGRectMake(16, 74, width - 32, 80)
+        fontSize:15
+       alignment:UITextAlignmentLeft
+         context:context];
+  [self drawText:"Broken bricks sometimes drop a capsule. Catch it with the "
+                 "paddle:"
+          inRect:CGRectMake(16, 158, width - 32, 40)
+        fontSize:15
+       alignment:UITextAlignmentLeft
+         context:context];
+
+  for (int i = 0; i < PowerUpCount; i++) {
+    CGFloat y = 206 + i * 30;
+    [self drawCapsule:(PowerUp)i x:20 y:y context:context];
+    [self drawText:powerUpDescriptions[i]
+            inRect:CGRectMake(20 + CAPSULE_WIDTH + 12, y - 2,
+                              width - 20 - CAPSULE_WIDTH - 12 - 8, 20)
+          fontSize:14
+         alignment:UITextAlignmentLeft
+           context:context];
+  }
+
+  [self drawText:"P and R cancel each other out. Losing a ball ends P, S "
+                 "and R."
+          inRect:CGRectMake(16, 206 + PowerUpCount * 30 + 6, width - 32, 40)
+        fontSize:14
+       alignment:UITextAlignmentLeft
+         context:context];
+
+  [self drawButton:[self goBackButtonFrame] text:"Go Back" context:context];
+}
+
+- (void)drawCapsule:(PowerUp)type
+                  x:(CGFloat)x
+                  y:(CGFloat)y
+            context:(CGContextRef)context {
+  const CGFloat *color = powerUpColors[type];
+  CGContextSetRGBFillColor(context, color[0], color[1], color[2], 1);
+  CGContextFillRect(context, CGRectMake(x, y, CAPSULE_WIDTH, CAPSULE_HEIGHT));
+  [self drawText:powerUpLetters[type]
+          inRect:CGRectMake(x, y - 1, CAPSULE_WIDTH, CAPSULE_HEIGHT + 2)
+        fontSize:11
+         context:context];
 }
 
 // "Fastest (speed): time", or "none yet" in place of the time.
@@ -765,6 +852,10 @@ static void saveInteger(const char *key, NSInteger value) {
 
   if (state == StateTitle) {
     [self drawTitleWithContext:context];
+    return;
+  }
+  if (state == StateHowToPlay) {
+    [self drawHowToPlayWithContext:context];
     return;
   }
 
@@ -881,16 +972,10 @@ static void saveInteger(const char *key, NSInteger value) {
     if (!capsules[i].active) {
       continue;
     }
-    const CGFloat *color = powerUpColors[capsules[i].type];
-    CGContextSetRGBFillColor(context, color[0], color[1], color[2], 1);
-    CGRect frame =
-        CGRectMake(capsules[i].x, capsules[i].y, CAPSULE_WIDTH, CAPSULE_HEIGHT);
-    CGContextFillRect(context, frame);
-    [self drawText:powerUpLetters[capsules[i].type]
-            inRect:CGRectMake(frame.origin.x, frame.origin.y - 1, CAPSULE_WIDTH,
-                              CAPSULE_HEIGHT + 2)
-          fontSize:11
-           context:context];
+    [self drawCapsule:capsules[i].type
+                    x:capsules[i].x
+                    y:capsules[i].y
+              context:context];
   }
 
   // Ball trails, oldest first, each one fainter and smaller than the last.
