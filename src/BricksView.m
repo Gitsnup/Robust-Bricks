@@ -813,8 +813,12 @@ static void saveInteger(const char *key, NSInteger value) {
         fontSize:18
          context:context];
 
-  char playedText[32] = "Games played: ";
-  playedText[appendNumber(playedText, 14, gamesPlayed[speed])] = 0;
+  // "Games played (speed): count".
+  char playedText[48];
+  int playedLength = appendString(playedText, 0, "Games played (");
+  playedLength = appendString(playedText, playedLength, speedNames[speed]);
+  playedLength = appendString(playedText, playedLength, "): ");
+  playedText[appendNumber(playedText, playedLength, gamesPlayed[speed])] = 0;
   [self drawText:playedText
           inRect:CGRectMake(0, height * 0.44f + 30, width, 24)
         fontSize:16
