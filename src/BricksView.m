@@ -5,9 +5,10 @@
  */
 
 // A single level of brick breaking with a random brick layout. Drag anywhere to
-// move the paddle, tap to serve. There are three balls per game. Clearing every
-// brick shows YOU WIN, losing the last ball shows GAME OVER, and tapping after
-// either starts a new game with a new layout.
+// move the paddle, tap to serve. There are three balls per game, and a timer
+// runs from the first serve until the game ends. Clearing every brick shows YOU
+// WIN, losing the last ball shows GAME OVER, and tapping after either starts a
+// new game with a new layout.
 
 #include "BricksView.h"
 #include "Sound.h"
@@ -102,6 +103,8 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
 - (void)resetGame {
   [self randomizeBricks];
   ballsLeft = BALLS_PER_GAME;
+  timerTicks = 0;
+  timerRunning = NO;
   paddleX = [self width] / 2;
   state = StateServing;
   [self placeBallOnPaddle];
@@ -126,6 +129,9 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
 
 // Called 60 times a second by the app delegate's timer.
 - (void)tick {
+  if (timerRunning) {
+    timerTicks++;
+  }
   if (state == StateServing) {
     [self placeBallOnPaddle];
   } else if (state == StatePlaying) {
@@ -155,6 +161,7 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
   if (ballY > [self height]) {
     ballsLeft--;
     state = ballsLeft > 0 ? StateServing : StateLost;
+    timerRunning = state != StateLost;
     return;
   }
 
@@ -204,6 +211,7 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
 
       if (bricksLeft == 0) {
         state = StateWon;
+        timerRunning = NO;
       }
       return;
     }
@@ -218,6 +226,7 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
     ballDX = BALL_SPEED * 0.6f;
     ballDY = -BALL_SPEED;
     state = StatePlaying;
+    timerRunning = YES;
   } else if (state == StateWon || state == StateLost) {
     [self resetGame];
   }
@@ -273,6 +282,30 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
       }
     }
   }
+
+  // Game time, in the upper left, as minutes:seconds.
+  char timeText[16] = "Time: ";
+  int seconds = timerTicks / 60;
+  int minutes = seconds / 60;
+  int length = 6;
+  char digits[5];
+  int count = 0;
+  do {
+    digits[count++] = (char)('0' + minutes % 10);
+    minutes /= 10;
+  } while (minutes > 0 && count < 5);
+  while (count > 0) {
+    timeText[length++] = digits[--count];
+  }
+  timeText[length++] = ':';
+  timeText[length++] = (char)('0' + (seconds % 60) / 10);
+  timeText[length++] = (char)('0' + seconds % 10);
+  timeText[length] = 0;
+  [self drawText:timeText
+          inRect:CGRectMake(10, 20, 150, 24)
+        fontSize:16
+       alignment:UITextAlignmentLeft
+         context:context];
 
   // Balls left, in the upper right. BALLS_PER_GAME is a single digit.
   char ballsText[] = "Balls: 0";

@@ -1,6 +1,6 @@
 # Dared Bricks
 
-A small brick-breaking game for iPhone OS 2.0 and later: one level, a random brick layout each game, and three balls. Drag anywhere to move the paddle and tap to serve. Clear every brick to see YOU WIN; lose the last ball and it's GAME OVER. Either way, tap to play again with a new layout. The ball boops off the paddle and bricks break with a crunch.
+A small brick-breaking game for iPhone OS 2.0 and later: one level, a random brick layout each game, three balls, and a timer to beat. Drag anywhere to move the paddle and tap to serve. Clear every brick to see YOU WIN; lose the last ball and it's GAME OVER. Either way, tap to play again with a new layout. The ball boops off the paddle and bricks break with a crunch.
 
 It was written for [iDared 32bit](https://idared32bit-emu.com/) and [touchHLE](https://touchhle.org/), and is tested in them.
 

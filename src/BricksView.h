@@ -16,7 +16,9 @@ typedef enum { StateServing, StatePlaying, StateWon, StateLost } GameState;
   GameState state;
   BOOL bricks[BRICK_ROWS][BRICK_COLUMNS];
   int bricksLeft;
-  int ballsLeft;        // Including the one in play.
+  int ballsLeft;  // Including the one in play.
+  int timerTicks; // Game time, in ticks of 1/60 s.
+  BOOL timerRunning;
   CGFloat paddleX;      // Center of the paddle.
   CGFloat ballX, ballY; // Top-left corner of the ball.
   CGFloat ballDX, ballDY;
