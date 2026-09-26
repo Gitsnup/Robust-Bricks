@@ -6,7 +6,7 @@
 
 // Sound effects, played through OpenAL.
 
-typedef enum { SoundBounce, SoundExplode, SoundCount } Sound;
+typedef enum { SoundBounce, SoundExplode, SoundPowerUp, SoundCount } Sound;
 
 // Loads the sounds. If anything fails, the game simply stays silent.
 void SoundInit(void);

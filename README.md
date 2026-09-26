@@ -2,6 +2,17 @@
 
 A small brick-breaking game for iPhone OS 2.0 and later: one level, a random brick layout each game, three balls, and a timer to beat. Drag anywhere to move the paddle and tap to serve. Clear every brick to see YOU WIN; lose the last ball and it's GAME OVER. Either way, tap to play again with a new layout. The ball boops off the paddle and bricks break with a crunch.
 
+Broken bricks sometimes drop a power-up. Catch it with the paddle:
+
+| Capsule | Power-up |
+|---|---|
+| **B** | One more ball |
+| **P** | A longer paddle, for 15 seconds |
+| **S** | Slow balls (half speed), for 15 seconds |
+| **M** | Multi-ball: two more balls in play |
+
+With multi-ball, you only lose a ball when the last one in play falls. Losing a ball ends any P or S power-up.
+
 It was written for [iDared 32bit](https://idared32bit-emu.com/) and [touchHLE](https://touchhle.org/), and is tested in them.
 
 Made by [apexad](https://github.com/apexad).

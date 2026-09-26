@@ -9,6 +9,11 @@
 // runs from the first serve until the game ends. Clearing every brick shows YOU
 // WIN, losing the last ball shows GAME OVER, and tapping after either starts a
 // new game with a new layout.
+//
+// Broken bricks sometimes drop a power-up capsule, which takes effect if the
+// paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
+// or M (multi-ball). A life is only lost when the last ball in play falls, and
+// losing one ends any P or S effect and clears falling capsules.
 
 #include "BricksView.h"
 #include "Sound.h"
@@ -20,16 +25,36 @@
 #define BRICKS_TOP 70.0f
 
 #define PADDLE_WIDTH 64.0f
+#define LONG_PADDLE_WIDTH 96.0f
 #define PADDLE_HEIGHT 10.0f
 #define PADDLE_FROM_BOTTOM 50.0f
 
 #define BALL_SIZE 8.0f
 #define BALL_SPEED 4.0f // Along each axis, in points per tick.
 
+#define CAPSULE_WIDTH 26.0f
+#define CAPSULE_HEIGHT 14.0f
+#define CAPSULE_SPEED 2.0f // Points per tick.
+// Out of 1024: 171 is about 1 in 6. (No %: armv6/armv7 have no divide.)
+#ifndef CAPSULE_CHANCE
+#define CAPSULE_CHANCE 171
+#endif
+
+#define POWER_UP_TICKS (15 * 60) // How long P and S last.
+
 // One color per row, top to bottom.
 static const CGFloat rowColors[BRICK_ROWS][3] = {
     {0.90f, 0.20f, 0.20f}, {0.95f, 0.55f, 0.15f}, {0.95f, 0.85f, 0.20f},
     {0.30f, 0.80f, 0.30f}, {0.20f, 0.70f, 0.90f}, {0.45f, 0.35f, 0.90f},
+};
+
+// Capsule letters and colors, in the order of the PowerUp enum.
+static const char *const powerUpLetters[PowerUpCount] = {"B", "P", "S", "M"};
+static const CGFloat powerUpColors[PowerUpCount][3] = {
+    {0.85f, 0.25f, 0.25f},
+    {0.25f, 0.50f, 0.95f},
+    {0.20f, 0.70f, 0.35f},
+    {0.95f, 0.55f, 0.10f},
 };
 
 // A small xorshift generator. The system's rand() and arc4random() start from
@@ -54,6 +79,20 @@ static CGFloat absf(CGFloat v) { return v < 0 ? -v : v; }
 static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
                      CGFloat by, CGFloat bw, CGFloat bh) {
   return ax < bx + bw && bx < ax + aw && ay < by + bh && by < ay + ah;
+}
+
+// Appends a non-negative number to a string, returning the new length.
+static int appendNumber(char *text, int length, int number) {
+  char digits[10];
+  int count = 0;
+  do {
+    digits[count++] = (char)('0' + number % 10);
+    number /= 10;
+  } while (number > 0 && count < 10);
+  while (count > 0) {
+    text[length++] = digits[--count];
+  }
+  return length;
 }
 
 @implementation BricksView
@@ -83,6 +122,10 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
   return [self height] - PADDLE_FROM_BOTTOM;
 }
 
+- (CGFloat)paddleWidth {
+  return longPaddleTicks > 0 ? LONG_PADDLE_WIDTH : PADDLE_WIDTH;
+}
+
 // A random layout, mirrored left to right so it looks deliberate. Each brick
 // is present with a 70% chance, and a layout needs at least 16 bricks.
 - (void)randomizeBricks {
@@ -90,7 +133,7 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
     bricksLeft = 0;
     for (int row = 0; row < BRICK_ROWS; row++) {
       for (int column = 0; column < BRICK_COLUMNS / 2; column++) {
-        // 717/1024 is about 70%. (No %: armv6/armv7 have no divide.)
+        // 717/1024 is about 70%.
         BOOL present = (nextRandom() & 1023) < 717;
         bricks[row][column] = present;
         bricks[row][BRICK_COLUMNS - 1 - column] = present;
@@ -100,8 +143,21 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
   } while (bricksLeft < 16);
 }
 
+// Ends the P and S effects and removes falling capsules and extra balls.
+- (void)clearPowerUps {
+  longPaddleTicks = 0;
+  slowTicks = 0;
+  for (int i = 0; i < MAX_CAPSULES; i++) {
+    capsules[i].active = NO;
+  }
+  for (int i = 0; i < MAX_BALLS_IN_PLAY; i++) {
+    balls[i].active = NO;
+  }
+}
+
 - (void)resetGame {
   [self randomizeBricks];
+  [self clearPowerUps];
   ballsLeft = BALLS_PER_GAME;
   timerTicks = 0;
   timerRunning = NO;
@@ -111,14 +167,15 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
 }
 
 - (void)placeBallOnPaddle {
-  ballX = paddleX - BALL_SIZE / 2;
-  ballY = [self paddleY] - BALL_SIZE;
-  ballDX = 0;
-  ballDY = 0;
+  balls[0].active = YES;
+  balls[0].x = paddleX - BALL_SIZE / 2;
+  balls[0].y = [self paddleY] - BALL_SIZE;
+  balls[0].dx = 0;
+  balls[0].dy = 0;
 }
 
 - (void)movePaddleTo:(CGFloat)x {
-  CGFloat half = PADDLE_WIDTH / 2;
+  CGFloat half = [self paddleWidth] / 2;
   if (x < half) {
     x = half;
   } else if (x > [self width] - half) {
@@ -135,53 +192,85 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
   if (state == StateServing) {
     [self placeBallOnPaddle];
   } else if (state == StatePlaying) {
-    [self moveBall];
+    [self play];
   }
   [self setNeedsDisplay];
 }
 
-- (void)moveBall {
-  ballX += ballDX;
-  ballY += ballDY;
-
-  // Walls and ceiling.
-  if (ballX < 0) {
-    ballX = 0;
-    ballDX = absf(ballDX);
-  } else if (ballX + BALL_SIZE > [self width]) {
-    ballX = [self width] - BALL_SIZE;
-    ballDX = -absf(ballDX);
+- (void)play {
+  if (longPaddleTicks > 0 && --longPaddleTicks == 0) {
+    // Back to the normal width: keep the paddle on screen.
+    [self movePaddleTo:paddleX];
   }
-  if (ballY < 0) {
-    ballY = 0;
-    ballDY = absf(ballDY);
+  if (slowTicks > 0) {
+    slowTicks--;
   }
+  CGFloat speed = slowTicks > 0 ? 0.5f : 1.0f;
 
-  // Missed: that ball is gone. Serve the next one, if there is one.
-  if (ballY > [self height]) {
+  BOOL anyBall = NO;
+  for (int i = 0; i < MAX_BALLS_IN_PLAY && state == StatePlaying; i++) {
+    if (balls[i].active) {
+      [self moveBall:&balls[i] speed:speed];
+      anyBall = anyBall || balls[i].active;
+    }
+  }
+  if (state != StatePlaying) {
+    return;
+  }
+  [self moveCapsules];
+
+  // The last ball in play is gone: that's a life lost.
+  if (!anyBall) {
     ballsLeft--;
+    [self clearPowerUps];
+    [self movePaddleTo:paddleX];
     state = ballsLeft > 0 ? StateServing : StateLost;
     timerRunning = state != StateLost;
+  }
+}
+
+- (void)moveBall:(Ball *)ball speed:(CGFloat)speed {
+  ball->x += ball->dx * speed;
+  ball->y += ball->dy * speed;
+
+  // Walls and ceiling.
+  if (ball->x < 0) {
+    ball->x = 0;
+    ball->dx = absf(ball->dx);
+  } else if (ball->x + BALL_SIZE > [self width]) {
+    ball->x = [self width] - BALL_SIZE;
+    ball->dx = -absf(ball->dx);
+  }
+  if (ball->y < 0) {
+    ball->y = 0;
+    ball->dy = absf(ball->dy);
+  }
+
+  // Missed: this ball is gone.
+  if (ball->y > [self height]) {
+    ball->active = NO;
     return;
   }
 
   // Paddle. Where the ball lands on it decides the bounce angle.
-  CGFloat paddleLeft = paddleX - PADDLE_WIDTH / 2;
-  if (ballDY > 0 && overlaps(ballX, ballY, BALL_SIZE, BALL_SIZE, paddleLeft,
-                             [self paddleY], PADDLE_WIDTH, PADDLE_HEIGHT)) {
-    ballY = [self paddleY] - BALL_SIZE;
-    ballDY = -absf(ballDY);
+  CGFloat paddleWidth = [self paddleWidth];
+  CGFloat paddleLeft = paddleX - paddleWidth / 2;
+  if (ball->dy > 0 &&
+      overlaps(ball->x, ball->y, BALL_SIZE, BALL_SIZE, paddleLeft,
+               [self paddleY], paddleWidth, PADDLE_HEIGHT)) {
+    ball->y = [self paddleY] - BALL_SIZE;
+    ball->dy = -absf(ball->dy);
     SoundPlay(SoundBounce);
-    CGFloat offset = (ballX + BALL_SIZE / 2 - paddleX) / (PADDLE_WIDTH / 2);
-    ballDX = offset * BALL_SPEED;
+    CGFloat offset = (ball->x + BALL_SIZE / 2 - paddleX) / (paddleWidth / 2);
+    ball->dx = offset * BALL_SPEED;
     // Never bounce straight up, or the ball could get stuck.
-    if (absf(ballDX) < 0.75f) {
-      ballDX = ballDX < 0 ? -0.75f : 0.75f;
+    if (absf(ball->dx) < 0.75f) {
+      ball->dx = ball->dx < 0 ? -0.75f : 0.75f;
     }
     return;
   }
 
-  // Bricks: break at most one per tick.
+  // Bricks: each ball breaks at most one per tick.
   CGFloat left = [self bricksLeftEdge];
   for (int row = 0; row < BRICK_ROWS; row++) {
     for (int column = 0; column < BRICK_COLUMNS; column++) {
@@ -190,7 +279,7 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
       }
       CGFloat x = left + column * (BRICK_WIDTH + BRICK_GAP);
       CGFloat y = BRICKS_TOP + row * (BRICK_HEIGHT + BRICK_GAP);
-      if (!overlaps(ballX, ballY, BALL_SIZE, BALL_SIZE, x, y, BRICK_WIDTH,
+      if (!overlaps(ball->x, ball->y, BALL_SIZE, BALL_SIZE, x, y, BRICK_WIDTH,
                     BRICK_HEIGHT)) {
         continue;
       }
@@ -200,20 +289,103 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
 
       // Bounce off whichever side the ball went in least far.
       CGFloat overlapX =
-          ballDX > 0 ? ballX + BALL_SIZE - x : x + BRICK_WIDTH - ballX;
+          ball->dx > 0 ? ball->x + BALL_SIZE - x : x + BRICK_WIDTH - ball->x;
       CGFloat overlapY =
-          ballDY > 0 ? ballY + BALL_SIZE - y : y + BRICK_HEIGHT - ballY;
+          ball->dy > 0 ? ball->y + BALL_SIZE - y : y + BRICK_HEIGHT - ball->y;
       if (overlapX < overlapY) {
-        ballDX = -ballDX;
+        ball->dx = -ball->dx;
       } else {
-        ballDY = -ballDY;
+        ball->dy = -ball->dy;
       }
 
       if (bricksLeft == 0) {
         state = StateWon;
         timerRunning = NO;
+        [self clearPowerUps];
+      } else {
+        [self maybeDropCapsuleAtX:x + BRICK_WIDTH / 2 y:y];
       }
       return;
+    }
+  }
+}
+
+- (void)maybeDropCapsuleAtX:(CGFloat)centerX y:(CGFloat)y {
+  if ((nextRandom() & 1023) >= CAPSULE_CHANCE) {
+    return;
+  }
+  for (int i = 0; i < MAX_CAPSULES; i++) {
+    if (!capsules[i].active) {
+      capsules[i].active = YES;
+      capsules[i].x = centerX - CAPSULE_WIDTH / 2;
+      capsules[i].y = y;
+      capsules[i].type = (PowerUp)(nextRandom() & 3);
+      return;
+    }
+  }
+}
+
+- (void)moveCapsules {
+  CGFloat paddleWidth = [self paddleWidth];
+  for (int i = 0; i < MAX_CAPSULES; i++) {
+    Capsule *capsule = &capsules[i];
+    if (!capsule->active) {
+      continue;
+    }
+    capsule->y += CAPSULE_SPEED;
+    if (overlaps(capsule->x, capsule->y, CAPSULE_WIDTH, CAPSULE_HEIGHT,
+                 paddleX - paddleWidth / 2, [self paddleY], paddleWidth,
+                 PADDLE_HEIGHT)) {
+      capsule->active = NO;
+      SoundPlay(SoundPowerUp);
+      [self applyPowerUp:capsule->type];
+    } else if (capsule->y > [self height]) {
+      capsule->active = NO;
+    }
+  }
+}
+
+- (void)applyPowerUp:(PowerUp)powerUp {
+  switch (powerUp) {
+  case PowerUpBall:
+    if (ballsLeft < MAX_BALLS_LEFT) {
+      ballsLeft++;
+    }
+    break;
+  case PowerUpPaddle:
+    longPaddleTicks = POWER_UP_TICKS;
+    [self movePaddleTo:paddleX];
+    break;
+  case PowerUpSlow:
+    slowTicks = POWER_UP_TICKS;
+    break;
+  case PowerUpMulti:
+    [self addBalls:2];
+    break;
+  default:
+    break;
+  }
+}
+
+// Splits new balls off the first ball in play, heading up and outwards.
+- (void)addBalls:(int)count {
+  Ball *source = 0;
+  for (int i = 0; i < MAX_BALLS_IN_PLAY; i++) {
+    if (balls[i].active) {
+      source = &balls[i];
+      break;
+    }
+  }
+  if (!source) {
+    return;
+  }
+  CGFloat directions[2] = {-BALL_SPEED * 0.8f, BALL_SPEED * 0.8f};
+  for (int i = 0; i < MAX_BALLS_IN_PLAY && count > 0; i++) {
+    if (!balls[i].active) {
+      balls[i] = *source;
+      balls[i].dx = directions[count & 1];
+      balls[i].dy = -BALL_SPEED;
+      count--;
     }
   }
 }
@@ -223,8 +395,8 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
   [self movePaddleTo:[touch locationInView:self].x];
 
   if (state == StateServing) {
-    ballDX = BALL_SPEED * 0.6f;
-    ballDY = -BALL_SPEED;
+    balls[0].dx = BALL_SPEED * 0.6f;
+    balls[0].dy = -BALL_SPEED;
     state = StatePlaying;
     timerRunning = YES;
   } else if (state == StateWon || state == StateLost) {
@@ -284,19 +456,9 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
   }
 
   // Game time, in the upper left, as minutes:seconds.
-  char timeText[16] = "Time: ";
+  char timeText[24] = "Time: ";
   int seconds = timerTicks / 60;
-  int minutes = seconds / 60;
-  int length = 6;
-  char digits[5];
-  int count = 0;
-  do {
-    digits[count++] = (char)('0' + minutes % 10);
-    minutes /= 10;
-  } while (minutes > 0 && count < 5);
-  while (count > 0) {
-    timeText[length++] = digits[--count];
-  }
+  int length = appendNumber(timeText, 6, seconds / 60);
   timeText[length++] = ':';
   timeText[length++] = (char)('0' + (seconds % 60) / 10);
   timeText[length++] = (char)('0' + seconds % 10);
@@ -307,7 +469,7 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
        alignment:UITextAlignmentLeft
          context:context];
 
-  // Balls left, in the upper right. BALLS_PER_GAME is a single digit.
+  // Balls left, in the upper right. MAX_BALLS_LEFT is a single digit.
   char ballsText[] = "Balls: 0";
   ballsText[sizeof(ballsText) - 2] = (char)('0' + ballsLeft);
   [self drawText:ballsText
@@ -315,6 +477,31 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
         fontSize:16
        alignment:UITextAlignmentRight
          context:context];
+
+  // Active P and S effects, with the seconds they have left, in between.
+  char effectsText[24];
+  length = 0;
+  if (longPaddleTicks > 0) {
+    effectsText[length++] = 'P';
+    effectsText[length++] = ' ';
+    length = appendNumber(effectsText, length, (longPaddleTicks + 59) / 60);
+  }
+  if (slowTicks > 0) {
+    if (length > 0) {
+      effectsText[length++] = ' ';
+      effectsText[length++] = ' ';
+    }
+    effectsText[length++] = 'S';
+    effectsText[length++] = ' ';
+    length = appendNumber(effectsText, length, (slowTicks + 59) / 60);
+  }
+  effectsText[length] = 0;
+  if (length > 0) {
+    [self drawText:effectsText
+            inRect:CGRectMake(width / 2 - 60, 20, 120, 24)
+          fontSize:16
+           context:context];
+  }
 
   if (state == StateWon || state == StateLost) {
     [self drawText:(state == StateWon ? "YOU WIN" : "GAME OVER")
@@ -328,12 +515,34 @@ static BOOL overlaps(CGFloat ax, CGFloat ay, CGFloat aw, CGFloat ah, CGFloat bx,
     return;
   }
 
+  for (int i = 0; i < MAX_CAPSULES; i++) {
+    if (!capsules[i].active) {
+      continue;
+    }
+    const CGFloat *color = powerUpColors[capsules[i].type];
+    CGContextSetRGBFillColor(context, color[0], color[1], color[2], 1);
+    CGRect frame =
+        CGRectMake(capsules[i].x, capsules[i].y, CAPSULE_WIDTH, CAPSULE_HEIGHT);
+    CGContextFillRect(context, frame);
+    [self drawText:powerUpLetters[capsules[i].type]
+            inRect:CGRectMake(frame.origin.x, frame.origin.y - 1, CAPSULE_WIDTH,
+                              CAPSULE_HEIGHT + 2)
+          fontSize:11
+           context:context];
+  }
+
+  CGFloat paddleWidth = [self paddleWidth];
   CGContextSetRGBFillColor(context, 0.9f, 0.9f, 0.9f, 1);
   CGContextFillRect(context,
-                    CGRectMake(paddleX - PADDLE_WIDTH / 2, [self paddleY],
-                               PADDLE_WIDTH, PADDLE_HEIGHT));
+                    CGRectMake(paddleX - paddleWidth / 2, [self paddleY],
+                               paddleWidth, PADDLE_HEIGHT));
   CGContextSetRGBFillColor(context, 1, 1, 1, 1);
-  CGContextFillRect(context, CGRectMake(ballX, ballY, BALL_SIZE, BALL_SIZE));
+  for (int i = 0; i < MAX_BALLS_IN_PLAY; i++) {
+    if (balls[i].active) {
+      CGContextFillRect(
+          context, CGRectMake(balls[i].x, balls[i].y, BALL_SIZE, BALL_SIZE));
+    }
+  }
 
   if (state == StateServing) {
     [self drawText:"Tap to serve"
