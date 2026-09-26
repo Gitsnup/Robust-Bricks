@@ -261,6 +261,7 @@ static void saveInteger(const char *key, NSInteger value) {
   balls[0].y = [self paddleY] - BALL_SIZE;
   balls[0].dx = 0;
   balls[0].dy = 0;
+  balls[0].trailCount = 0;
 }
 
 - (void)movePaddleTo:(CGFloat)x {
@@ -304,6 +305,9 @@ static void saveInteger(const char *key, NSInteger value) {
 
   BOOL anyBall = NO;
   for (int i = 0; i < MAX_BALLS_IN_PLAY && state == StatePlaying; i++) {
+    if (balls[i].active) {
+      [self recordTrail:&balls[i]];
+    }
     for (int step = 0;
          step < steps && balls[i].active && state == StatePlaying; step++) {
       [self moveBall:&balls[i] speed:stepFactor];
@@ -322,6 +326,18 @@ static void saveInteger(const char *key, NSInteger value) {
     [self movePaddleTo:paddleX];
     state = ballsLeft > 0 ? StateServing : StateLost;
     timerRunning = state != StateLost;
+  }
+}
+
+- (void)recordTrail:(Ball *)ball {
+  for (int i = TRAIL_LENGTH - 1; i > 0; i--) {
+    ball->trailX[i] = ball->trailX[i - 1];
+    ball->trailY[i] = ball->trailY[i - 1];
+  }
+  ball->trailX[0] = ball->x;
+  ball->trailY[0] = ball->y;
+  if (ball->trailCount < TRAIL_LENGTH) {
+    ball->trailCount++;
   }
 }
 
@@ -838,6 +854,22 @@ static void saveInteger(const char *key, NSInteger value) {
                               CAPSULE_HEIGHT + 2)
           fontSize:11
            context:context];
+  }
+
+  // Ball trails, oldest first, each one fainter and smaller than the last.
+  for (int i = 0; i < MAX_BALLS_IN_PLAY; i++) {
+    if (!balls[i].active) {
+      continue;
+    }
+    for (int j = balls[i].trailCount - 1; j >= 0; j--) {
+      CGFloat life = (CGFloat)(TRAIL_LENGTH - j) / (TRAIL_LENGTH + 1);
+      CGFloat size = BALL_SIZE * (0.4f + 0.6f * life);
+      CGContextSetRGBFillColor(context, 1, 1, 1, 0.5f * life);
+      CGContextFillRect(context,
+                        CGRectMake(balls[i].trailX[j] + (BALL_SIZE - size) / 2,
+                                   balls[i].trailY[j] + (BALL_SIZE - size) / 2,
+                                   size, size));
+    }
   }
 
   CGFloat paddleWidth = [self paddleWidth];

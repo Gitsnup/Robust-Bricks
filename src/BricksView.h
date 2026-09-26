@@ -13,6 +13,7 @@
 #define MAX_BALLS_IN_PLAY 8
 #define MAX_CAPSULES 6
 #define MAX_PIECES 64 // Flying pieces of broken bricks.
+#define TRAIL_LENGTH 6 // Earlier ball positions drawn behind each ball.
 
 typedef enum {
   StateTitle,
@@ -38,6 +39,9 @@ typedef struct {
   BOOL active;
   CGFloat x, y; // Top-left corner.
   CGFloat dx, dy;
+  // Where the ball was on the last few ticks, most recent first.
+  CGFloat trailX[TRAIL_LENGTH], trailY[TRAIL_LENGTH];
+  int trailCount;
 } Ball;
 
 typedef struct {
