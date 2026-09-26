@@ -6,8 +6,14 @@
 
 // Sound effects, played through OpenAL.
 
+#include "System.h"
+
 typedef enum { SoundBounce, SoundExplode, SoundPowerUp, SoundCount } Sound;
 
 // Loads the sounds. If anything fails, the game simply stays silent.
 void SoundInit(void);
 void SoundPlay(Sound sound);
+
+// Sound is on unless turned off; SoundPlay does nothing while it's off.
+void SoundSetEnabled(BOOL enabled);
+BOOL SoundIsEnabled(void);

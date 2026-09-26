@@ -2,7 +2,7 @@
 
 A small brick-breaking game for iPhone OS 2.0 and later: one level, a random brick layout each game, three balls, and a timer to beat. Drag anywhere to move the paddle and tap to serve. Clear every brick to see YOU WIN; lose the last ball and it's GAME OVER. Either way, tap to return to the title screen, and tap again to play a new layout. The ball boops off the paddle, and bricks shatter into flying pieces with a crunch.
 
-The title screen shows your fastest winning time and how many games you've played, both saved between launches. Beat it and the win screen says NEW RECORD!
+The title screen shows your fastest winning time and how many games you've played, and has a button to turn sound on or off. All three are saved between launches. Beat it and the win screen says NEW RECORD!
 
 Broken bricks sometimes drop a power-up. Catch it with the paddle:
 

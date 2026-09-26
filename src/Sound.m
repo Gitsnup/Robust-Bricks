@@ -13,6 +13,7 @@ static const char *const soundNames[SoundCount] = {"bounce", "explode",
 
 static ALuint sources[SoundCount];
 static BOOL loaded[SoundCount];
+static BOOL enabled = YES;
 
 static unsigned int readLE16(const unsigned char *p) {
   return p[0] | (p[1] << 8);
@@ -86,9 +87,13 @@ void SoundInit(void) {
   }
 }
 
+void SoundSetEnabled(BOOL newEnabled) { enabled = newEnabled; }
+
+BOOL SoundIsEnabled(void) { return enabled; }
+
 void SoundPlay(Sound sound) {
   // Playing a source that is already playing restarts it.
-  if (loaded[sound]) {
+  if (enabled && loaded[sound]) {
     alSourcePlay(sources[sound]);
   }
 }

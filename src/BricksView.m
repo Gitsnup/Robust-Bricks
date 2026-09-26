@@ -5,8 +5,8 @@
  */
 
 // A single level of brick breaking with a random brick layout. A title screen
-// shows the fastest winning time and the number of games played, which are
-// saved between launches. Drag
+// shows the fastest winning time and the number of games played, and has a
+// sound on/off button; all three are saved between launches. Drag
 // anywhere to move the paddle, tap to serve. There are three balls per game,
 // and a timer runs from the first serve until the game ends. Clearing every
 // brick shows YOU WIN, losing the last ball shows GAME OVER, and tapping after
@@ -55,6 +55,9 @@
 #define FASTEST_TICKS_KEY "FastestTicks"
 // The NSUserDefaults key for the number of games started.
 #define GAMES_PLAYED_KEY "GamesPlayed"
+// The NSUserDefaults key for turning sound off. Sound is on by default, when
+// the key is missing.
+#define SOUND_OFF_KEY "SoundOff"
 
 // One color per row, top to bottom.
 static const CGFloat rowColors[BRICK_ROWS][3] = {
@@ -146,6 +149,7 @@ static void saveInteger(const char *key, NSInteger value) {
   if ((self = [super initWithFrame:frame])) {
     fastestTicks = (int)loadInteger(FASTEST_TICKS_KEY);
     gamesPlayed = (int)loadInteger(GAMES_PLAYED_KEY);
+    SoundSetEnabled(!loadInteger(SOUND_OFF_KEY));
     [self resetGame];
     state = StateTitle;
   }
@@ -507,6 +511,12 @@ static void saveInteger(const char *key, NSInteger value) {
     balls[0].dy = -BALL_SPEED;
     state = StatePlaying;
     timerRunning = YES;
+  } else if (state == StateTitle &&
+             [self soundButtonContains:[touch locationInView:self]]) {
+    BOOL enabled = !SoundIsEnabled();
+    SoundSetEnabled(enabled);
+    saveInteger(SOUND_OFF_KEY, !enabled);
+    SoundPlay(SoundBounce); // Only heard when turning sound on.
   } else if (state == StateTitle) {
     gamesPlayed++;
     saveInteger(GAMES_PLAYED_KEY, gamesPlayed);
@@ -514,6 +524,18 @@ static void saveInteger(const char *key, NSInteger value) {
   } else if (state == StateWon || state == StateLost) {
     state = StateTitle;
   }
+}
+
+- (CGRect)soundButtonFrame {
+  return CGRectMake([self width] / 2 - 80, [self height] * 0.84f, 160, 36);
+}
+
+- (BOOL)soundButtonContains:(CGPoint)point {
+  CGRect frame = [self soundButtonFrame];
+  return point.x >= frame.origin.x &&
+         point.x < frame.origin.x + frame.size.width &&
+         point.y >= frame.origin.y &&
+         point.y < frame.origin.y + frame.size.height;
 }
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
@@ -594,6 +616,15 @@ static void saveInteger(const char *key, NSInteger value) {
   [self drawText:"Tap to play"
           inRect:CGRectMake(0, height * 0.72f, width, 30)
         fontSize:22
+         context:context];
+
+  CGRect button = [self soundButtonFrame];
+  CGContextSetRGBFillColor(context, 0.25f, 0.25f, 0.3f, 1);
+  CGContextFillRect(context, button);
+  [self drawText:(SoundIsEnabled() ? "Sound: On" : "Sound: Off")
+          inRect:CGRectMake(button.origin.x, button.origin.y + 7,
+                            button.size.width, button.size.height - 7)
+        fontSize:18
          context:context];
 }
 
