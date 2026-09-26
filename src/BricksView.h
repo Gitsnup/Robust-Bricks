@@ -31,6 +31,9 @@ typedef enum {
   PowerUpCount
 } PowerUp;
 
+// How fast the balls move, chosen on the title screen.
+typedef enum { SpeedNormal, SpeedFast, SpeedLudicrous, SpeedCount } Speed;
+
 typedef struct {
   BOOL active;
   CGFloat x, y; // Top-left corner.
@@ -59,10 +62,12 @@ typedef struct {
   int ballsLeft;  // Including the ones in play.
   int timerTicks; // Game time, in ticks of 1/60 s.
   BOOL timerRunning;
-  int fastestTicks; // Fastest win, saved between launches; 0 if none yet.
-  BOOL newRecord;   // The game just won set a new fastest time.
-  int gamesPlayed;  // Saved between launches.
-  CGFloat paddleX;  // Center of the paddle.
+  Speed speed;      // Saved between launches.
+  // Fastest win at each speed, saved between launches; 0 if none yet.
+  int fastestTicks[SpeedCount];
+  BOOL newRecord;  // The game just won set a new fastest time.
+  int gamesPlayed; // Saved between launches.
+  CGFloat paddleX; // Center of the paddle.
   Ball balls[MAX_BALLS_IN_PLAY];
   Capsule capsules[MAX_CAPSULES];
   Piece pieces[MAX_PIECES];

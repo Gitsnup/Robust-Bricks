@@ -5,9 +5,10 @@
  */
 
 // A single level of brick breaking with a random brick layout. A title screen
-// shows the fastest winning time and the number of games played, and has a
-// sound on/off button; all three are saved between launches. Drag
-// anywhere to move the paddle, tap to serve. There are three balls per game,
+// shows the fastest winning time and the number of games played, and has
+// buttons for the ball speed (Normal, Fast or Ludicrous) and for sound on or
+// off. All of these are saved between launches, with a separate fastest time
+// for each speed. Drag anywhere to move the paddle, tap to serve. There are three balls per game,
 // and a timer runs from the first serve until the game ends. Clearing every
 // brick shows YOU WIN, losing the last ball shows GAME OVER, and tapping after
 // either starts a new game with a new layout.
@@ -51,8 +52,8 @@
 #define PIECE_TICKS 30
 #define PIECE_GRAVITY 0.25f // Points per tick, per tick.
 
-// The NSUserDefaults key for the fastest winning time, in ticks.
-#define FASTEST_TICKS_KEY "FastestTicks"
+// The NSUserDefaults key for the speed setting.
+#define SPEED_KEY "Speed"
 // The NSUserDefaults key for the number of games started.
 #define GAMES_PLAYED_KEY "GamesPlayed"
 // The NSUserDefaults key for turning sound off. Sound is on by default, when
@@ -64,6 +65,15 @@ static const CGFloat rowColors[BRICK_ROWS][3] = {
     {0.90f, 0.20f, 0.20f}, {0.95f, 0.55f, 0.15f}, {0.95f, 0.85f, 0.20f},
     {0.30f, 0.80f, 0.30f}, {0.20f, 0.70f, 0.90f}, {0.45f, 0.35f, 0.90f},
 };
+
+// Speed names, ball speed multipliers and the NSUserDefaults keys for the
+// fastest winning time (in ticks), in the order of the Speed enum. Normal
+// keeps the key from before there was a speed setting.
+static const char *const speedNames[SpeedCount] = {"Normal", "Fast",
+                                                   "Ludicrous"};
+static const CGFloat speedMultipliers[SpeedCount] = {1.0f, 1.5f, 2.5f};
+static const char *const fastestTicksKeys[SpeedCount] = {
+    "FastestTicks", "FastestTicksFast", "FastestTicksLudicrous"};
 
 // Capsule letters and colors, in the order of the PowerUp enum.
 static const char *const powerUpLetters[PowerUpCount] = {"B", "P", "S", "M"};
@@ -117,6 +127,15 @@ static int appendNumber(char *text, int length, int number) {
   return length;
 }
 
+// Appends a string to a string, returning the new length.
+static int appendString(char *text, int length, const char *string) {
+  while (*string) {
+    text[length++] = *string++;
+  }
+  text[length] = 0;
+  return length;
+}
+
 // Appends a time in ticks as minutes:seconds, or minutes:seconds.tenths.
 static int appendTime(char *text, int length, int ticks, BOOL tenths) {
   int seconds = ticks / 60;
@@ -147,7 +166,12 @@ static void saveInteger(const char *key, NSInteger value) {
 
 - (instancetype)initWithFrame:(CGRect)frame {
   if ((self = [super initWithFrame:frame])) {
-    fastestTicks = (int)loadInteger(FASTEST_TICKS_KEY);
+    for (int i = 0; i < SpeedCount; i++) {
+      fastestTicks[i] = (int)loadInteger(fastestTicksKeys[i]);
+    }
+    NSInteger savedSpeed = loadInteger(SPEED_KEY);
+    speed = savedSpeed >= 0 && savedSpeed < SpeedCount ? (Speed)savedSpeed
+                                                       : SpeedNormal;
     gamesPlayed = (int)loadInteger(GAMES_PLAYED_KEY);
     SoundSetEnabled(!loadInteger(SOUND_OFF_KEY));
     [self resetGame];
@@ -263,14 +287,19 @@ static void saveInteger(const char *key, NSInteger value) {
   if (slowTicks > 0) {
     slowTicks--;
   }
-  CGFloat speed = slowTicks > 0 ? 0.5f : 1.0f;
+  CGFloat factor = speedMultipliers[speed] * (slowTicks > 0 ? 0.5f : 1.0f);
+  // At the faster speeds each ball moves in smaller steps, so it can't pass
+  // through the paddle or a corner of a brick between one step and the next.
+  int steps = factor > 2 ? 3 : factor > 1 ? 2 : 1;
+  CGFloat stepFactor = factor / steps;
 
   BOOL anyBall = NO;
   for (int i = 0; i < MAX_BALLS_IN_PLAY && state == StatePlaying; i++) {
-    if (balls[i].active) {
-      [self moveBall:&balls[i] speed:speed];
-      anyBall = anyBall || balls[i].active;
+    for (int step = 0;
+         step < steps && balls[i].active && state == StatePlaying; step++) {
+      [self moveBall:&balls[i] speed:stepFactor];
     }
+    anyBall = anyBall || balls[i].active;
   }
   if (state != StatePlaying) {
     return;
@@ -287,9 +316,9 @@ static void saveInteger(const char *key, NSInteger value) {
   }
 }
 
-- (void)moveBall:(Ball *)ball speed:(CGFloat)speed {
-  ball->x += ball->dx * speed;
-  ball->y += ball->dy * speed;
+- (void)moveBall:(Ball *)ball speed:(CGFloat)factor {
+  ball->x += ball->dx * factor;
+  ball->y += ball->dy * factor;
 
   // Walls and ceiling.
   if (ball->x < 0) {
@@ -328,7 +357,7 @@ static void saveInteger(const char *key, NSInteger value) {
     return;
   }
 
-  // Bricks: each ball breaks at most one per tick.
+  // Bricks: each ball breaks at most one per step.
   CGFloat left = [self bricksLeftEdge];
   for (int row = 0; row < BRICK_ROWS; row++) {
     for (int column = 0; column < BRICK_COLUMNS; column++) {
@@ -370,12 +399,12 @@ static void saveInteger(const char *key, NSInteger value) {
   }
 }
 
-// Saves the time if it's the fastest win so far.
+// Saves the time if it's the fastest win so far at this speed.
 - (void)recordWin {
-  newRecord = fastestTicks == 0 || timerTicks < fastestTicks;
+  newRecord = fastestTicks[speed] == 0 || timerTicks < fastestTicks[speed];
   if (newRecord) {
-    fastestTicks = timerTicks;
-    saveInteger(FASTEST_TICKS_KEY, fastestTicks);
+    fastestTicks[speed] = timerTicks;
+    saveInteger(fastestTicksKeys[speed], timerTicks);
   }
 }
 
@@ -512,7 +541,14 @@ static void saveInteger(const char *key, NSInteger value) {
     state = StatePlaying;
     timerRunning = YES;
   } else if (state == StateTitle &&
-             [self soundButtonContains:[touch locationInView:self]]) {
+             [self button:[self speedButtonFrame]
+                 contains:[touch locationInView:self]]) {
+    speed = speed + 1 < SpeedCount ? (Speed)(speed + 1) : SpeedNormal;
+    saveInteger(SPEED_KEY, speed);
+    SoundPlay(SoundBounce);
+  } else if (state == StateTitle &&
+             [self button:[self soundButtonFrame]
+                 contains:[touch locationInView:self]]) {
     BOOL enabled = !SoundIsEnabled();
     SoundSetEnabled(enabled);
     saveInteger(SOUND_OFF_KEY, !enabled);
@@ -526,12 +562,15 @@ static void saveInteger(const char *key, NSInteger value) {
   }
 }
 
-- (CGRect)soundButtonFrame {
-  return CGRectMake([self width] / 2 - 80, [self height] * 0.84f, 160, 36);
+- (CGRect)speedButtonFrame {
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.76f, 200, 36);
 }
 
-- (BOOL)soundButtonContains:(CGPoint)point {
-  CGRect frame = [self soundButtonFrame];
+- (CGRect)soundButtonFrame {
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.86f, 200, 36);
+}
+
+- (BOOL)button:(CGRect)frame contains:(CGPoint)point {
   return point.x >= frame.origin.x &&
          point.x < frame.origin.x + frame.size.width &&
          point.y >= frame.origin.y &&
@@ -592,38 +631,54 @@ static void saveInteger(const char *key, NSInteger value) {
                                           BRICK_HEIGHT));
   }
 
-  if (fastestTicks > 0) {
-    char text[32] = "Fastest time: ";
-    appendTime(text, 14, fastestTicks, YES);
-    [self drawText:text
-            inRect:CGRectMake(0, height * 0.55f, width, 26)
-          fontSize:20
-           context:context];
-  } else {
-    [self drawText:"No fastest time yet"
-            inRect:CGRectMake(0, height * 0.55f, width, 26)
-          fontSize:20
-           context:context];
-  }
+  // The fastest time at the chosen speed.
+  char text[48];
+  [self fastestText:text];
+  [self drawText:text
+          inRect:CGRectMake(0, height * 0.52f, width, 26)
+        fontSize:18
+         context:context];
 
   char playedText[32] = "Games played: ";
   playedText[appendNumber(playedText, 14, gamesPlayed)] = 0;
   [self drawText:playedText
-          inRect:CGRectMake(0, height * 0.55f + 32, width, 24)
+          inRect:CGRectMake(0, height * 0.52f + 30, width, 24)
         fontSize:16
          context:context];
 
   [self drawText:"Tap to play"
-          inRect:CGRectMake(0, height * 0.72f, width, 30)
+          inRect:CGRectMake(0, height * 0.65f, width, 30)
         fontSize:22
          context:context];
 
-  CGRect button = [self soundButtonFrame];
+  char speedText[32] = "Speed: ";
+  appendString(speedText, 7, speedNames[speed]);
+  [self drawButton:[self speedButtonFrame] text:speedText context:context];
+  [self drawButton:[self soundButtonFrame]
+              text:(SoundIsEnabled() ? "Sound: On" : "Sound: Off")
+           context:context];
+}
+
+// "Fastest (speed): time", or "none yet" in place of the time.
+- (void)fastestText:(char *)text {
+  int length = appendString(text, 0, "Fastest (");
+  length = appendString(text, length, speedNames[speed]);
+  length = appendString(text, length, "): ");
+  if (fastestTicks[speed] > 0) {
+    appendTime(text, length, fastestTicks[speed], YES);
+  } else {
+    appendString(text, length, "none yet");
+  }
+}
+
+- (void)drawButton:(CGRect)frame
+              text:(const char *)text
+           context:(CGContextRef)context {
   CGContextSetRGBFillColor(context, 0.25f, 0.25f, 0.3f, 1);
-  CGContextFillRect(context, button);
-  [self drawText:(SoundIsEnabled() ? "Sound: On" : "Sound: Off")
-          inRect:CGRectMake(button.origin.x, button.origin.y + 7,
-                            button.size.width, button.size.height - 7)
+  CGContextFillRect(context, frame);
+  [self drawText:text
+          inRect:CGRectMake(frame.origin.x, frame.origin.y + 7,
+                            frame.size.width, frame.size.height - 7)
         fontSize:18
          context:context];
 }
@@ -720,11 +775,14 @@ static void saveInteger(const char *key, NSInteger value) {
             inRect:CGRectMake(0, height / 2 - 60, width, 50)
           fontSize:40
            context:context];
-    char text[32] = "Your time: ";
-    appendTime(text, 11, timerTicks, YES);
+    char text[48];
+    int timeLength = appendString(text, 0, "Your time (");
+    timeLength = appendString(text, timeLength, speedNames[speed]);
+    timeLength = appendString(text, timeLength, "): ");
+    appendTime(text, timeLength, timerTicks, YES);
     [self drawText:text
             inRect:CGRectMake(0, height / 2, width, 26)
-          fontSize:20
+          fontSize:18
            context:context];
     if (newRecord) {
       [self drawText:"NEW RECORD!"
@@ -732,8 +790,8 @@ static void saveInteger(const char *key, NSInteger value) {
             fontSize:24
              context:context];
     } else {
-      char fastest[32] = "Fastest: ";
-      appendTime(fastest, 9, fastestTicks, YES);
+      char fastest[48];
+      [self fastestText:fastest];
       [self drawText:fastest
               inRect:CGRectMake(0, height / 2 + 32, width, 26)
             fontSize:18
