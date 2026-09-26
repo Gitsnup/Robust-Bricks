@@ -16,10 +16,11 @@
 //
 // Broken bricks sometimes drop a power-up capsule, which takes effect if the
 // paddle catches it: B (one more ball), P (a longer paddle), S (slower balls)
-// or M (multi-ball). The red R capsule is a bad one: it ends a P, or else
-// makes the paddle shorter for a while, and a P likewise ends an R. A life is
-// only lost when the last ball in play falls, and losing one ends any P, S or
-// R effect and clears falling capsules.
+// or M (multi-ball). The red R capsule is a bad one: it reduces the paddle
+// size 25% for 15 seconds. P and R cancel each other out, so an R caught
+// during a P just ends the P, and a P caught during an R just ends the R. A
+// life is only lost when the last ball in play falls, and losing one ends any
+// P, S or R effect and clears falling capsules.
 
 #include "BricksView.h"
 #include "Sound.h"
@@ -32,7 +33,7 @@
 
 #define PADDLE_WIDTH 64.0f
 #define LONG_PADDLE_WIDTH 96.0f  // With P.
-#define SHORT_PADDLE_WIDTH 48.0f // With R: 25% shorter.
+#define SHORT_PADDLE_WIDTH 48.0f // With R: 25% smaller.
 #define PADDLE_HEIGHT 10.0f
 #define PADDLE_FROM_BOTTOM 50.0f
 
@@ -111,13 +112,14 @@ static const CGFloat powerUpColors[PowerUpCount][3] = {
     {0.95f, 0.55f, 0.10f}, {0.90f, 0.10f, 0.10f},
 };
 
-// What each capsule does, for the How to Play screen.
+// What each capsule does, for the How to Play screen. Each one has room for
+// two lines, and R needs them.
 static const char *const powerUpDescriptions[PowerUpCount] = {
     "One more ball",
     "A longer paddle for 15 seconds",
     "Slower balls for 15 seconds",
     "Two more balls in play at once",
-    "Bad! A shorter paddle for 15 seconds",
+    "Bad! Reduce paddle size 25%\nfor 15 seconds",
 };
 
 // A small xorshift generator. The system's rand() and arc4random() start from
@@ -862,11 +864,11 @@ static void saveInteger(const char *key, NSInteger value) {
          context:context];
 
   for (int i = 0; i < PowerUpCount; i++) {
-    CGFloat y = 206 + i * 30;
+    CGFloat y = 204 + i * 28;
     [self drawCapsule:(PowerUp)i x:20 y:y context:context];
     [self drawText:powerUpDescriptions[i]
             inRect:CGRectMake(20 + CAPSULE_WIDTH + 12, y - 2,
-                              width - 20 - CAPSULE_WIDTH - 12 - 8, 20)
+                              width - 20 - CAPSULE_WIDTH - 12 - 8, 40)
           fontSize:14
          alignment:UITextAlignmentLeft
            context:context];
@@ -874,7 +876,7 @@ static void saveInteger(const char *key, NSInteger value) {
 
   [self drawText:"P and R cancel each other out. Losing a ball ends P, S "
                  "and R."
-          inRect:CGRectMake(16, 206 + PowerUpCount * 30 + 6, width - 32, 40)
+          inRect:CGRectMake(16, 204 + PowerUpCount * 28 + 20, width - 32, 40)
         fontSize:14
        alignment:UITextAlignmentLeft
          context:context];

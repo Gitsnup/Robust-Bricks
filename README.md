@@ -36,9 +36,9 @@ Broken bricks sometimes drop a capsule. Catch it with the paddle, which flashes 
 | **P** | A longer paddle, for 15 seconds |
 | **S** | Slow balls (half speed), for 15 seconds |
 | **M** | Multi-ball: two more balls in play |
-| **R** | The bad one, in red: ends a **P** if you have one, otherwise a 25% shorter paddle for 15 seconds |
+| **R** | Bad! Reduce paddle size 25% for 15 seconds |
 
-P and R cancel each other out, so catching a **P** while an **R** is shrinking the paddle just ends the **R**. With multi-ball, you only lose a ball when the last one in play falls. Losing a ball ends any P, S or R effect.
+R is the only red capsule. P and R cancel each other out, so catching an **R** while you have a **P** just ends the **P**, and catching a **P** while an **R** is reducing the paddle size just ends the **R**. With multi-ball, you only lose a ball when the last one in play falls. Losing a ball ends any P, S or R effect.
 
 ## Playing
 
