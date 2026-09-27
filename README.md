@@ -1,4 +1,5 @@
 # Dared Bricks
+<img alt="Dared Bricks Gameplay" src="https://raw.githubusercontent.com/iDared32bit-emu/Dared-Bricks/main/screenshots/game-play.png">
 
 A small brick-breaking game for iPhone OS 2.0 and later. There's one level, with a new random brick layout each game, three balls, and a timer to beat.
 
@@ -17,7 +18,7 @@ Drag anywhere to move the paddle, and tap to serve. The timer starts with your f
 The ball leaves a fading trail, boops off the paddle and ticks off the walls and ceiling, and bricks shatter into flying pieces with a crunch.
 
 ## Title screen
-
+<img alt="Dared Bricks Title screen" src="https://raw.githubusercontent.com/iDared32bit-emu/Dared-Bricks/main/screenshots/title-screen.png">
 The title screen shows your fastest winning time and how many games you've played, both at the chosen speed. Tap anywhere except the buttons to play. The buttons are:
 
 - **How to Play**: a page explaining the controls and every capsule, with a **Go Back** button to return to the title screen.
