@@ -4,15 +4,13 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// A single level of brick breaking with a random brick layout. A title screen
-// shows the fastest winning time and the number of games played, and has
-// buttons for How to Play, the ball speed (Normal, Fast or Ludicrous) and sound
-// on or off. All of these are saved between launches, with a separate fastest
-// time and games played count for each speed. Drag anywhere to move the paddle,
-// tap to serve. There are three balls per game, and a timer runs from the first
-// serve until the game ends. Clearing every brick shows YOU WIN, with bursts of
-// colored pieces behind it, and losing the last ball shows GAME OVER with the
-// number of bricks left. Tapping after either goes back to the title screen.
+// A five-level brick-breaking game. The first level has a random brick layout;
+// four handcrafted layouts follow. A title screen shows the fastest campaign
+// time and number of games played, with buttons for How to Play, ball speed
+// (Normal, Fast or Ludicrous) and sound. Drag anywhere to move the paddle, tap
+// to serve or continue. The campaign starts with three balls, and the timer runs
+// from the first serve until the final level is cleared or the last ball is
+// lost. Clearing all five levels shows YOU WIN, with bursts of colored pieces.
 //
 // Broken bricks sometimes drop a capsule, which takes effect if the paddle
 // catches it: B (ball added), P (paddle size increased, for 15 seconds), S
@@ -91,16 +89,25 @@ static const CGFloat rowColors[BRICK_ROWS][3] = {
     {0.30f, 0.80f, 0.30f}, {0.20f, 0.70f, 0.90f}, {0.45f, 0.35f, 0.90f},
 };
 
+// Levels 2–5, top to bottom. Each byte is one row, with bit 0 as the leftmost
+// brick. The layouts are symmetric patterns inspired by classic block games.
+static const unsigned char levelLayouts[LEVEL_COUNT - 1][BRICK_ROWS] = {
+    {0x3c, 0x7e, 0xff, 0xff, 0x7e, 0x3c}, // Diamond
+    {0xff, 0x00, 0xff, 0x00, 0xff, 0x00}, // Bars
+    {0x81, 0xc3, 0x66, 0x3c, 0x66, 0xc3}, // Arrow
+    {0xff, 0x99, 0x99, 0xff, 0x99, 0x99}, // Gate
+};
+
 // Speed names, ball speed multipliers and the NSUserDefaults keys for the
-// fastest winning time (in ticks) and the number of games started, in the
-// order of the Speed enum. Normal keeps the keys from before there was a speed
-// setting, and so also the games played count from 1.0, which was for all
-// speeds together.
+// fastest campaign time (in ticks) and the number of games started, in the
+// order of the Speed enum. Game-count keys are kept so existing counts survive
+// the campaign update.
 static const char *const speedNames[SpeedCount] = {"Normal", "Fast",
                                                    "Ludicrous"};
 static const CGFloat speedMultipliers[SpeedCount] = {1.0f, 1.5f, 2.5f};
 static const char *const fastestTicksKeys[SpeedCount] = {
-    "FastestTicks", "FastestTicksFast", "FastestTicksLudicrous"};
+    "RobustBricksCampaignFastestTicks", "RobustBricksCampaignFastestTicksFast",
+    "RobustBricksCampaignFastestTicksLudicrous"};
 static const char *const gamesPlayedKeys[SpeedCount] = {
     "GamesPlayed", "GamesPlayedFast", "GamesPlayedLudicrous"};
 
@@ -278,6 +285,24 @@ static void saveInteger(const char *key, NSInteger value) {
   } while (bricksLeft < 16);
 }
 
+- (void)loadLevel:(int)newLevel {
+  level = newLevel;
+  if (level == 1) {
+    [self randomizeBricks];
+    return;
+  }
+
+  const unsigned char *layout = levelLayouts[level - 2];
+  bricksLeft = 0;
+  for (int row = 0; row < BRICK_ROWS; row++) {
+    for (int column = 0; column < BRICK_COLUMNS; column++) {
+      BOOL present = (layout[row] & (1u << column)) != 0;
+      bricks[row][column] = present;
+      bricksLeft += present ? 1 : 0;
+    }
+  }
+}
+
 // Ends the P and S effects and removes falling capsules and extra balls.
 - (void)clearPowerUps {
   longPaddleTicks = 0;
@@ -293,7 +318,7 @@ static void saveInteger(const char *key, NSInteger value) {
 }
 
 - (void)resetGame {
-  [self randomizeBricks];
+  [self loadLevel:1];
   [self clearPowerUps];
   for (int i = 0; i < MAX_PIECES; i++) {
     pieces[i].active = NO;
@@ -303,6 +328,15 @@ static void saveInteger(const char *key, NSInteger value) {
   timerRunning = NO;
   newRecord = NO;
   paddleX = [self width] / 2;
+  state = StateServing;
+  [self placeBallOnPaddle];
+}
+
+- (void)startLevel:(int)newLevel {
+  [self loadLevel:newLevel];
+  [self clearPowerUps];
+  [self movePaddleTo:paddleX];
+  timerRunning = NO;
   state = StateServing;
   [self placeBallOnPaddle];
 }
@@ -479,11 +513,15 @@ static void saveInteger(const char *key, NSInteger value) {
       }
 
       if (bricksLeft == 0) {
-        state = StateWon;
-        timerRunning = NO;
         [self clearPowerUps];
-        [self recordWin];
-        celebrationTicks = 0;
+        timerRunning = NO;
+        if (level < LEVEL_COUNT) {
+          state = StateLevelComplete;
+        } else {
+          state = StateWon;
+          [self recordWin];
+          celebrationTicks = 0;
+        }
       } else {
         [self maybeDropCapsuleAtX:x + BRICK_WIDTH / 2 y:y];
       }
@@ -696,6 +734,9 @@ static void saveInteger(const char *key, NSInteger value) {
     balls[0].dy = -BALL_SPEED;
     state = StatePlaying;
     timerRunning = YES;
+  } else if (state == StateLevelComplete) {
+    [self startLevel:level + 1];
+    SoundPlay(SoundBounce);
   } else if (state == StateTitle &&
              [self button:[self howToPlayButtonFrame]
                  contains:[touch locationInView:self]]) {
@@ -786,7 +827,7 @@ static void saveInteger(const char *key, NSInteger value) {
   CGFloat width = [self width];
   CGFloat height = [self height];
 
-  [self drawText:"DARED"
+  [self drawText:"ROBUST"
           inRect:CGRectMake(0, height * 0.14f, width, 50)
         fontSize:44
          context:context];
@@ -849,9 +890,8 @@ static void saveInteger(const char *key, NSInteger value) {
           inRect:CGRectMake(0, 24, width, 36)
         fontSize:28
          context:context];
-  [self drawText:"Drag anywhere to move the paddle, and tap to serve. Clear "
-                 "every brick to win. You have three balls, and the clock "
-                 "runs from your first serve."
+  [self drawText:"Drag to move the paddle and tap to serve. Clear all five "
+                 "levels to win. You start with three balls."
           inRect:CGRectMake(16, 74, width - 32, 80)
         fontSize:15
        alignment:UITextAlignmentLeft
@@ -985,7 +1025,7 @@ static void saveInteger(const char *key, NSInteger value) {
   [self drawText:ballsText
           inRect:CGRectMake(width - 110, 20, 100, 24)
         fontSize:16
-       alignment:UITextAlignmentRight
+         alignment:UITextAlignmentRight
          context:context];
 
   // Active P, R and S effects, with the seconds they have left, in between.
@@ -1001,6 +1041,37 @@ static void saveInteger(const char *key, NSInteger value) {
             inRect:CGRectMake(width / 2 - 60, 20, 120, 24)
           fontSize:16
            context:context];
+  }
+
+  char levelText[24] = "Level ";
+  int levelLength = appendNumber(levelText, 6, level);
+  levelLength = appendString(levelText, levelLength, "/");
+  levelText[appendNumber(levelText, levelLength, LEVEL_COUNT)] = 0;
+  [self drawText:levelText
+          inRect:CGRectMake(10, 42, 150, 24)
+        fontSize:16
+       alignment:UITextAlignmentLeft
+         context:context];
+
+  if (state == StateLevelComplete) {
+    [self drawText:"LEVEL CLEARED"
+            inRect:CGRectMake(0, height / 2 - 50, width, 44)
+          fontSize:32
+           context:context];
+    char levelCompleteText[32] = "Level ";
+    int completeLength = appendNumber(levelCompleteText, 6, level);
+    completeLength = appendString(levelCompleteText, completeLength, " of ");
+    completeLength = appendNumber(levelCompleteText, completeLength, LEVEL_COUNT);
+    levelCompleteText[completeLength] = 0;
+    [self drawText:levelCompleteText
+            inRect:CGRectMake(0, height / 2, width, 26)
+          fontSize:18
+           context:context];
+    [self drawText:"Tap for next level"
+            inRect:CGRectMake(0, height / 2 + 60, width, 30)
+          fontSize:18
+           context:context];
+    return;
   }
 
   if (state == StateWon) {

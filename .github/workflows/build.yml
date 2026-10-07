@@ -1,0 +1,43 @@
+name: Build Robust Bricks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build IPA
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install --yes clang make
+
+      - name: Download common-3.0 SDK
+        env:
+          SDK_URL: https://github.com/touchHLE/common-3.0-sdk/releases/download/v0.3.7/common-3.0.sdk-linux-x86_64.tar.gz
+          SDK_SHA256: b72fdbe2f9104ee4886fb76a977fd617cb5d5b168b4225e1b4fd582d99c65e9b
+        run: |
+          curl --fail --location --silent --show-error "$SDK_URL" --output "$RUNNER_TEMP/common-3.0.sdk.tar.gz"
+          echo "$SDK_SHA256  $RUNNER_TEMP/common-3.0.sdk.tar.gz" | sha256sum --check
+          mkdir -p "$RUNNER_TEMP/sdk"
+          tar -xzf "$RUNNER_TEMP/common-3.0.sdk.tar.gz" -C "$RUNNER_TEMP/sdk"
+
+      - name: Build and validate IPA
+        run: |
+          make SDK="$RUNNER_TEMP/sdk/common-3.0.sdk"
+          unzip -t build/RobustBricks.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: RobustBricks-ipa
+          path: build/RobustBricks.ipa
+          if-no-files-found: error
+          retention-days: 14

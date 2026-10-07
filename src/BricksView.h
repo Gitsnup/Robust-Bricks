@@ -8,6 +8,7 @@
 
 #define BRICK_ROWS 6
 #define BRICK_COLUMNS 8
+#define LEVEL_COUNT 5
 #define BALLS_PER_GAME 3
 #define MAX_BALLS_LEFT 9 // The counter shows a single digit.
 #define MAX_BALLS_IN_PLAY 8
@@ -20,6 +21,7 @@ typedef enum {
   StateHowToPlay,
   StateServing,
   StatePlaying,
+  StateLevelComplete,
   StateWon,
   StateLost
 } GameState;
@@ -67,6 +69,7 @@ typedef struct {
   GameState state;
   BOOL bricks[BRICK_ROWS][BRICK_COLUMNS];
   int bricksLeft;
+  int level;
   int ballsLeft;  // Including the ones in play.
   int timerTicks; // Game time, in ticks of 1/60 s.
   BOOL timerRunning;

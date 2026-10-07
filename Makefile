@@ -2,20 +2,20 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 #
-# Builds Dared Bricks for iPhone OS 2.0 and later (armv6 + armv7) with clang and
+# Builds Robust Bricks for iPhone OS 2.0 and later (armv6 + armv7) with clang and
 # the common-3.0 SDK (https://github.com/touchHLE/common-3.0-sdk), which
 # provides the linker, the startup code and stub system libraries.
 #
 #   make SDK=/path/to/common-3.0.sdk
 #
-# The result is build/DaredBricks.ipa. For a build where every broken brick
+# The result is build/RobustBricks.ipa. For a build where every broken brick
 # drops a power-up, for testing them: make clean; make SDK=... CAPSULE_CHANCE=1024
 # For a build where the paddle is as wide as the screen, so no ball is ever
 # lost: make clean; make SDK=... FULL_PADDLE=true
 
 CLANG ?= clang
 BUILD := build
-NAME := DaredBricks
+NAME := RobustBricks
 IPA := $(BUILD)/$(NAME).ipa
 # The app bundle is only assembled here long enough to be zipped into the .ipa.
 STAGE := $(BUILD)/Payload/$(NAME).app

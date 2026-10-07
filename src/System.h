@@ -4,7 +4,7 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// The few system declarations Dared Bricks needs. They are written out here,
+// The few system declarations Robust Bricks needs. They are written out here,
 // rather than taken from SDK headers, so that the game builds with nothing but
 // a compiler, a linker and stub libraries for the frameworks it links against.
 

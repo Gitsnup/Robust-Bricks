@@ -5,17 +5,17 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundleDisplayName</key>
-	<string>Dared Bricks</string>
+	<string>Robust Bricks</string>
 	<key>CFBundleExecutable</key>
-	<string>DaredBricks</string>
+	<string>RobustBricks</string>
 	<key>CFBundleIconFile</key>
 	<string>Icon.png</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.idared32bit.DaredBricks</string>
+	<string>com.gitsnup.RobustBricks</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Dared Bricks</string>
+	<string>Robust Bricks</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

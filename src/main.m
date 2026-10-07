@@ -4,20 +4,20 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// Dared Bricks: a small homebrew game for iPhone OS 2.x. See README.md for how
+// Robust Bricks: a small homebrew game for iPhone OS 2.x. See README.md for how
 // to build it.
 
 #include "BricksView.h"
 #include "Sound.h"
 #include "System.h"
 
-@interface DaredBricksAppDelegate : NSObject {
+@interface RobustBricksAppDelegate : NSObject {
   UIWindow *window;
   BricksView *view;
 }
 @end
 
-@implementation DaredBricksAppDelegate
+@implementation RobustBricksAppDelegate
 
 - (void)applicationDidFinishLaunching:(UIApplication *)application {
   [application setStatusBarHidden:YES];
@@ -50,7 +50,7 @@
 int main(int argc, char *argv[]) {
   NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
   int result = UIApplicationMain(
-      argc, argv, nil, NSStringFromClass([DaredBricksAppDelegate class]));
+      argc, argv, nil, NSStringFromClass([RobustBricksAppDelegate class]));
   [pool drain];
   return result;
 }
