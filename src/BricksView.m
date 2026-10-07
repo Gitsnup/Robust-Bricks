@@ -4,13 +4,13 @@
  * file, You can obtain one at https://mozilla.org/MPL/2.0/.
  */
 
-// A five-level brick-breaking game. The first level has a random brick layout;
-// four handcrafted layouts follow. A title screen shows the fastest campaign
-// time and number of games played, with buttons for How to Play, ball speed
-// (Normal, Fast or Ludicrous) and sound. Drag anywhere to move the paddle, tap
-// to serve or continue. The campaign starts with three balls, and the timer runs
-// from the first serve until the final level is cleared or the last ball is
-// lost. Clearing all five levels shows YOU WIN, with bursts of colored pieces.
+// An endless brick-breaking game with Casual, Classic, Tough and Expert rules.
+// Each run starts with one random board and four handcrafted boards, then
+// continues with random boards forever. The title screen saves the highest
+// level reached for each difficulty. Tap Pause during a run to resume, restart
+// or return to the title. Colored bricks award different points, increased on
+// harder difficulties. The campaign starts with difficulty-specific lives;
+// each life is lost only when the last ball in play falls.
 //
 // Broken bricks sometimes drop a capsule, which takes effect if the paddle
 // catches it: B (ball added), P (paddle size increased, for 15 seconds), S
@@ -28,11 +28,8 @@
 #define BRICK_WIDTH 36.0f
 #define BRICK_HEIGHT 14.0f
 #define BRICK_GAP 4.0f
-#define BRICKS_TOP 70.0f
+#define BRICKS_TOP 94.0f
 
-#define PADDLE_WIDTH 64.0f
-#define LONG_PADDLE_WIDTH 96.0f  // With P.
-#define SHORT_PADDLE_WIDTH 48.0f // With R: 25% smaller.
 #define PADDLE_HEIGHT 10.0f
 #define PADDLE_FROM_BOTTOM 50.0f
 
@@ -42,10 +39,8 @@
 #define CAPSULE_WIDTH 26.0f
 #define CAPSULE_HEIGHT 14.0f
 #define CAPSULE_SPEED 2.0f // Points per tick.
-// Out of 1024: 171 is about 1 in 6. (No %: armv6/armv7 have no divide.)
-#ifndef CAPSULE_CHANCE
-#define CAPSULE_CHANCE 171
-#endif
+// Capsule drops are difficulty-specific; CAPSULE_CHANCE can override them for
+// testing. Random comparisons use bit masking because armv6/armv7 lack divide.
 
 // For testing: 1 makes the paddle as wide as the screen, so no ball is lost.
 #ifndef FULL_PADDLE
@@ -63,22 +58,8 @@
 #define PIECE_TICKS 30
 #define PIECE_GRAVITY 0.25f // Points per tick, per tick.
 
-// Winning sets off bursts of pieces behind YOU WIN: one every
-// BURST_INTERVAL ticks, BURST_COUNT in all, or for as long as the win screen
-// shows after a new record. Each burst is BURST_PIECES pieces of one row color
-// flying out in a ring, falling slowly and fading over BURST_TICKS.
-#define BURST_INTERVAL 20
-#define BURST_COUNT 8
-#define BURST_PIECES 20
-#define BURST_TICKS 50
-#define BURST_GRAVITY 0.06f
-// cos and sin of 360/BURST_PIECES degrees, to turn each piece's direction
-// from the last one's without needing the math library.
-#define BURST_COS 0.95105652f
-#define BURST_SIN 0.30901699f
-
-// The NSUserDefaults key for the speed setting.
-#define SPEED_KEY "Speed"
+// The NSUserDefaults key for the selected difficulty.
+#define DIFFICULTY_KEY "Difficulty"
 // The NSUserDefaults key for turning sound off. Sound is on by default, when
 // the key is missing.
 #define SOUND_OFF_KEY "SoundOff"
@@ -91,25 +72,37 @@ static const CGFloat rowColors[BRICK_ROWS][3] = {
 
 // Levels 2–5, top to bottom. Each byte is one row, with bit 0 as the leftmost
 // brick. The layouts are symmetric patterns inspired by classic block games.
-static const unsigned char levelLayouts[LEVEL_COUNT - 1][BRICK_ROWS] = {
+static const unsigned char
+    levelLayouts[HANDCRAFTED_LEVEL_COUNT - 1][BRICK_ROWS] = {
     {0x3c, 0x7e, 0xff, 0xff, 0x7e, 0x3c}, // Diamond
     {0xff, 0x00, 0xff, 0x00, 0xff, 0x00}, // Bars
     {0x81, 0xc3, 0x66, 0x3c, 0x66, 0xc3}, // Arrow
     {0xff, 0x99, 0x99, 0xff, 0x99, 0x99}, // Gate
 };
 
-// Speed names, ball speed multipliers and the NSUserDefaults keys for the
-// fastest campaign time (in ticks) and the number of games started, in the
-// order of the Speed enum. Game-count keys are kept so existing counts survive
-// the campaign update.
-static const char *const speedNames[SpeedCount] = {"Normal", "Fast",
-                                                   "Ludicrous"};
-static const CGFloat speedMultipliers[SpeedCount] = {1.0f, 1.5f, 2.5f};
-static const char *const fastestTicksKeys[SpeedCount] = {
-    "RobustBricksCampaignFastestTicks", "RobustBricksCampaignFastestTicksFast",
-    "RobustBricksCampaignFastestTicksLudicrous"};
-static const char *const gamesPlayedKeys[SpeedCount] = {
-    "GamesPlayed", "GamesPlayedFast", "GamesPlayedLudicrous"};
+// Difficulty rules, score multipliers, and per-difficulty saved records.
+static const char *const difficultyNames[DifficultyCount] = {
+    "Casual", "Classic", "Tough", "Expert"};
+static const CGFloat difficultySpeedMultipliers[DifficultyCount] = {
+    0.8f, 1.0f, 1.4f, 1.8f};
+#if !FULL_PADDLE
+static const CGFloat difficultyPaddleWidths[DifficultyCount] = {
+    80.0f, 64.0f, 56.0f, 48.0f};
+#endif
+static const int difficultyStartingBalls[DifficultyCount] = {5, 3, 2, 1};
+static const int difficultyBrickDensity[DifficultyCount] = {614, 717, 768, 819};
+#ifndef CAPSULE_CHANCE
+static const int difficultyCapsuleChances[DifficultyCount] = {230, 171, 128, 85};
+#endif
+static const int difficultyScoreMultipliers[DifficultyCount] = {1, 1, 2, 3};
+static const char *const bestLevelKeys[DifficultyCount] = {
+    "BestLevelCasual", "BestLevelClassic", "BestLevelTough", "BestLevelExpert"};
+static const char *const gamesPlayedKeys[DifficultyCount] = {
+    "GamesPlayedCasual", "GamesPlayedClassic", "GamesPlayedTough",
+    "GamesPlayedExpert"};
+
+// Arkanoid-style values, top (red) to bottom (purple).
+static const int brickScores[BRICK_ROWS] = {60, 50, 40, 30, 20, 10};
 
 // Capsule letters and colors, in the order of the PowerUp enum.
 // Only R, the bad one, is red.
@@ -225,13 +218,14 @@ static void saveInteger(const char *key, NSInteger value) {
 
 - (instancetype)initWithFrame:(CGRect)frame {
   if ((self = [super initWithFrame:frame])) {
-    for (int i = 0; i < SpeedCount; i++) {
-      fastestTicks[i] = (int)loadInteger(fastestTicksKeys[i]);
+    for (int i = 0; i < DifficultyCount; i++) {
+      bestLevel[i] = (int)loadInteger(bestLevelKeys[i]);
       gamesPlayed[i] = (int)loadInteger(gamesPlayedKeys[i]);
     }
-    NSInteger savedSpeed = loadInteger(SPEED_KEY);
-    speed = savedSpeed >= 0 && savedSpeed < SpeedCount ? (Speed)savedSpeed
-                                                       : SpeedNormal;
+    NSInteger savedDifficulty = loadInteger(DIFFICULTY_KEY);
+    difficulty = savedDifficulty >= 0 && savedDifficulty < DifficultyCount
+                     ? (Difficulty)savedDifficulty
+                     : DifficultyClassic;
     SoundSetEnabled(!loadInteger(SOUND_OFF_KEY));
     [self resetGame];
     state = StateTitle;
@@ -261,22 +255,35 @@ static void saveInteger(const char *key, NSInteger value) {
 #if FULL_PADDLE
   return [self width];
 #else
+  CGFloat baseWidth = difficultyPaddleWidths[difficulty];
   if (longPaddleTicks > 0) {
-    return LONG_PADDLE_WIDTH;
+    return baseWidth + 24.0f;
   }
-  return shortPaddleTicks > 0 ? SHORT_PADDLE_WIDTH : PADDLE_WIDTH;
+  if (shortPaddleTicks > 0) {
+    CGFloat shortWidth = baseWidth * 0.75f;
+    return shortWidth < 36.0f ? 36.0f : shortWidth;
+  }
+  return baseWidth;
 #endif
 }
 
-// A random layout, mirrored left to right so it looks deliberate. Each brick
-// is present with a 70% chance, and a layout needs at least 16 bricks.
+- (int)capsuleChance {
+#ifdef CAPSULE_CHANCE
+  return CAPSULE_CHANCE;
+#else
+  return difficultyCapsuleChances[difficulty];
+#endif
+}
+
+// A random layout, mirrored left to right so it looks deliberate. Density
+// depends on difficulty and a layout needs at least 16 bricks.
 - (void)randomizeBricks {
   do {
     bricksLeft = 0;
     for (int row = 0; row < BRICK_ROWS; row++) {
       for (int column = 0; column < BRICK_COLUMNS / 2; column++) {
-        // 717/1024 is about 70%.
-        BOOL present = (nextRandom() & 1023) < 717;
+        BOOL present =
+            (nextRandom() & 1023) < difficultyBrickDensity[difficulty];
         bricks[row][column] = present;
         bricks[row][BRICK_COLUMNS - 1 - column] = present;
         bricksLeft += present ? 2 : 0;
@@ -287,7 +294,7 @@ static void saveInteger(const char *key, NSInteger value) {
 
 - (void)loadLevel:(int)newLevel {
   level = newLevel;
-  if (level == 1) {
+  if (level == 1 || level > HANDCRAFTED_LEVEL_COUNT) {
     [self randomizeBricks];
     return;
   }
@@ -323,7 +330,8 @@ static void saveInteger(const char *key, NSInteger value) {
   for (int i = 0; i < MAX_PIECES; i++) {
     pieces[i].active = NO;
   }
-  ballsLeft = BALLS_PER_GAME;
+  ballsLeft = difficultyStartingBalls[difficulty];
+  score = 0;
   timerTicks = 0;
   timerRunning = NO;
   newRecord = NO;
@@ -332,8 +340,17 @@ static void saveInteger(const char *key, NSInteger value) {
   [self placeBallOnPaddle];
 }
 
+- (void)recordLevelReached {
+  if (level > bestLevel[difficulty]) {
+    bestLevel[difficulty] = level;
+    newRecord = YES;
+    saveInteger(bestLevelKeys[difficulty], level);
+  }
+}
+
 - (void)startLevel:(int)newLevel {
   [self loadLevel:newLevel];
+  [self recordLevelReached];
   [self clearPowerUps];
   [self movePaddleTo:paddleX];
   timerRunning = NO;
@@ -369,11 +386,11 @@ static void saveInteger(const char *key, NSInteger value) {
     [self placeBallOnPaddle];
   } else if (state == StatePlaying) {
     [self play];
-  } else if (state == StateWon) {
-    [self celebrate];
   }
-  // Pieces keep flying on the serve, win and game over screens too.
-  [self movePieces];
+  // Pause freezes fragments and power-up timers as well as ball movement.
+  if (state != StatePaused) {
+    [self movePieces];
+  }
   [self setNeedsDisplay];
 }
 
@@ -391,7 +408,13 @@ static void saveInteger(const char *key, NSInteger value) {
   if (slowTicks > 0) {
     slowTicks--;
   }
-  CGFloat factor = speedMultipliers[speed] * (slowTicks > 0 ? 0.5f : 1.0f);
+  int speedIncrease = (level - 1) / 5;
+  if (speedIncrease > 10) {
+    speedIncrease = 10;
+  }
+  CGFloat factor = difficultySpeedMultipliers[difficulty] *
+                   (1.0f + speedIncrease * 0.05f) *
+                   (slowTicks > 0 ? 0.5f : 1.0f);
   // At the faster speeds each ball moves in smaller steps, so it can't pass
   // through the paddle or a corner of a brick between one step and the next.
   int steps = factor > 2 ? 3 : factor > 1 ? 2 : 1;
@@ -498,6 +521,8 @@ static void saveInteger(const char *key, NSInteger value) {
       }
       bricks[row][column] = NO;
       bricksLeft--;
+      int points = brickScores[row] * difficultyScoreMultipliers[difficulty];
+      score = score > 2147483647 - points ? 2147483647 : score + points;
       SoundPlay(SoundExplode);
       [self shatterBrickAtX:x y:y row:row ball:ball];
 
@@ -515,27 +540,12 @@ static void saveInteger(const char *key, NSInteger value) {
       if (bricksLeft == 0) {
         [self clearPowerUps];
         timerRunning = NO;
-        if (level < LEVEL_COUNT) {
-          state = StateLevelComplete;
-        } else {
-          state = StateWon;
-          [self recordWin];
-          celebrationTicks = 0;
-        }
+        state = StateLevelComplete;
       } else {
         [self maybeDropCapsuleAtX:x + BRICK_WIDTH / 2 y:y];
       }
       return;
     }
-  }
-}
-
-// Saves the time if it's the fastest win so far at this speed.
-- (void)recordWin {
-  newRecord = fastestTicks[speed] == 0 || timerTicks < fastestTicks[speed];
-  if (newRecord) {
-    fastestTicks[speed] = timerTicks;
-    saveInteger(fastestTicksKeys[speed], timerTicks);
   }
 }
 
@@ -569,49 +579,6 @@ static void saveInteger(const char *key, NSInteger value) {
   }
 }
 
-- (void)celebrate {
-  celebrationTicks++;
-  // (% by a constant is fine: the compiler turns it into a multiply.)
-  if (celebrationTicks % BURST_INTERVAL == 1 &&
-      (celebrationTicks < BURST_INTERVAL * BURST_COUNT || newRecord)) {
-    [self burst];
-  }
-}
-
-// A ring of pieces from a random point, in a random row color.
-- (void)burst {
-  CGFloat width = [self width];
-  CGFloat height = [self height];
-  CGFloat x = width / 2 + jitter(width / 2 - 40);
-  CGFloat y = height * 0.4f + jitter(height * 0.3f);
-  int row = (int)(((nextRandom() & 1023) * BRICK_ROWS) >> 10);
-  CGFloat directionX = 1, directionY = 0;
-  int slot = 0;
-  for (int i = 0; i < BURST_PIECES; i++) {
-    while (slot < MAX_PIECES && pieces[slot].active) {
-      slot++;
-    }
-    if (slot == MAX_PIECES) {
-      return;
-    }
-    Piece *piece = &pieces[slot];
-    CGFloat pieceSpeed = 2.5f + jitter(1.0f);
-    piece->active = YES;
-    piece->x = x;
-    piece->y = y;
-    piece->dx = directionX * pieceSpeed;
-    piece->dy = directionY * pieceSpeed;
-    piece->gravity = BURST_GRAVITY;
-    piece->ticksLeft = BURST_TICKS;
-    piece->lifeTicks = BURST_TICKS;
-    piece->row = row;
-
-    CGFloat nextX = directionX * BURST_COS - directionY * BURST_SIN;
-    directionY = directionX * BURST_SIN + directionY * BURST_COS;
-    directionX = nextX;
-  }
-}
-
 - (void)movePieces {
   for (int i = 0; i < MAX_PIECES; i++) {
     Piece *piece = &pieces[i];
@@ -628,7 +595,7 @@ static void saveInteger(const char *key, NSInteger value) {
 }
 
 - (void)maybeDropCapsuleAtX:(CGFloat)centerX y:(CGFloat)y {
-  if ((nextRandom() & 1023) >= CAPSULE_CHANCE) {
+  if ((nextRandom() & 1023) >= [self capsuleChance]) {
     return;
   }
   for (int i = 0; i < MAX_CAPSULES; i++) {
@@ -727,7 +694,41 @@ static void saveInteger(const char *key, NSInteger value) {
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event {
   UITouch *touch = [touches anyObject];
-  [self movePaddleTo:[touch locationInView:self].x];
+  CGPoint point = [touch locationInView:self];
+
+  if (state == StatePaused) {
+    if ([self button:[self resumeButtonFrame] contains:point]) {
+      state = pausedState;
+      timerRunning = state == StatePlaying;
+      SoundPlay(SoundBounce);
+    } else if ([self button:[self restartButtonFrame] contains:point]) {
+      gamesPlayed[difficulty]++;
+      saveInteger(gamesPlayedKeys[difficulty], gamesPlayed[difficulty]);
+      [self resetGame];
+      [self recordLevelReached];
+      SoundPlay(SoundBounce);
+    } else if ([self button:[self returnTitleButtonFrame] contains:point]) {
+      timerRunning = NO;
+      state = StateTitle;
+      SoundPlay(SoundBounce);
+    }
+    return;
+  }
+
+  if ((state == StateServing || state == StatePlaying ||
+       state == StateLevelComplete) &&
+      [self button:[self pauseButtonFrame] contains:point]) {
+    pausedState = state;
+    timerRunning = NO;
+    state = StatePaused;
+    SoundPlay(SoundBounce);
+    return;
+  }
+
+  if (state == StateServing || state == StatePlaying ||
+      state == StateLevelComplete) {
+    [self movePaddleTo:point.x];
+  }
 
   if (state == StateServing) {
     balls[0].dx = BALL_SPEED * 0.6f;
@@ -738,34 +739,33 @@ static void saveInteger(const char *key, NSInteger value) {
     [self startLevel:level + 1];
     SoundPlay(SoundBounce);
   } else if (state == StateTitle &&
-             [self button:[self howToPlayButtonFrame]
-                 contains:[touch locationInView:self]]) {
+             [self button:[self howToPlayButtonFrame] contains:point]) {
     state = StateHowToPlay;
     SoundPlay(SoundBounce);
   } else if (state == StateHowToPlay) {
-    if ([self button:[self goBackButtonFrame]
-            contains:[touch locationInView:self]]) {
+    if ([self button:[self goBackButtonFrame] contains:point]) {
       state = StateTitle;
       SoundPlay(SoundBounce);
     }
   } else if (state == StateTitle &&
-             [self button:[self speedButtonFrame]
-                 contains:[touch locationInView:self]]) {
-    speed = speed + 1 < SpeedCount ? (Speed)(speed + 1) : SpeedNormal;
-    saveInteger(SPEED_KEY, speed);
+             [self button:[self difficultyButtonFrame] contains:point]) {
+    difficulty = difficulty + 1 < DifficultyCount
+                     ? (Difficulty)(difficulty + 1)
+                     : DifficultyCasual;
+    saveInteger(DIFFICULTY_KEY, difficulty);
     SoundPlay(SoundBounce);
   } else if (state == StateTitle &&
-             [self button:[self soundButtonFrame]
-                 contains:[touch locationInView:self]]) {
+             [self button:[self soundButtonFrame] contains:point]) {
     BOOL enabled = !SoundIsEnabled();
     SoundSetEnabled(enabled);
     saveInteger(SOUND_OFF_KEY, !enabled);
     SoundPlay(SoundBounce); // Only heard when turning sound on.
   } else if (state == StateTitle) {
-    gamesPlayed[speed]++;
-    saveInteger(gamesPlayedKeys[speed], gamesPlayed[speed]);
+    gamesPlayed[difficulty]++;
+    saveInteger(gamesPlayedKeys[difficulty], gamesPlayed[difficulty]);
     [self resetGame];
-  } else if (state == StateWon || state == StateLost) {
+    [self recordLevelReached];
+  } else if (state == StateLost) {
     state = StateTitle;
   }
 }
@@ -774,7 +774,7 @@ static void saveInteger(const char *key, NSInteger value) {
   return CGRectMake([self width] / 2 - 100, [self height] * 0.66f, 200, 36);
 }
 
-- (CGRect)speedButtonFrame {
+- (CGRect)difficultyButtonFrame {
   return CGRectMake([self width] / 2 - 100, [self height] * 0.75f, 200, 36);
 }
 
@@ -787,6 +787,22 @@ static void saveInteger(const char *key, NSInteger value) {
   return CGRectMake([self width] / 2 - 100, [self height] * 0.86f, 200, 36);
 }
 
+- (CGRect)pauseButtonFrame {
+  return CGRectMake([self width] - 70, 42, 60, 30);
+}
+
+- (CGRect)resumeButtonFrame {
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.47f, 200, 36);
+}
+
+- (CGRect)restartButtonFrame {
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.59f, 200, 36);
+}
+
+- (CGRect)returnTitleButtonFrame {
+  return CGRectMake([self width] / 2 - 100, [self height] * 0.71f, 200, 36);
+}
+
 - (BOOL)button:(CGRect)frame contains:(CGPoint)point {
   return point.x >= frame.origin.x &&
          point.x < frame.origin.x + frame.size.width &&
@@ -795,8 +811,10 @@ static void saveInteger(const char *key, NSInteger value) {
 }
 
 - (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event {
-  UITouch *touch = [touches anyObject];
-  [self movePaddleTo:[touch locationInView:self].x];
+  if (state == StateServing || state == StatePlaying) {
+    UITouch *touch = [touches anyObject];
+    [self movePaddleTo:[touch locationInView:self].x];
+  }
 }
 
 - (void)drawText:(const char *)text
@@ -848,20 +866,21 @@ static void saveInteger(const char *key, NSInteger value) {
                                           BRICK_HEIGHT));
   }
 
-  // The fastest time at the chosen speed.
-  char text[48];
-  [self fastestText:text];
-  [self drawText:text
+  char recordText[48];
+  [self bestLevelText:recordText];
+  [self drawText:recordText
           inRect:CGRectMake(0, height * 0.44f, width, 26)
-        fontSize:18
+        fontSize:16
          context:context];
 
-  // "Games played (speed): count".
+  // Games played at the selected difficulty.
   char playedText[48];
   int playedLength = appendString(playedText, 0, "Games played (");
-  playedLength = appendString(playedText, playedLength, speedNames[speed]);
+  playedLength = appendString(playedText, playedLength,
+                              difficultyNames[difficulty]);
   playedLength = appendString(playedText, playedLength, "): ");
-  playedText[appendNumber(playedText, playedLength, gamesPlayed[speed])] = 0;
+  playedText[appendNumber(playedText, playedLength,
+                          gamesPlayed[difficulty])] = 0;
   [self drawText:playedText
           inRect:CGRectMake(0, height * 0.44f + 30, width, 24)
         fontSize:16
@@ -875,9 +894,11 @@ static void saveInteger(const char *key, NSInteger value) {
   [self drawButton:[self howToPlayButtonFrame]
               text:"How to Play"
            context:context];
-  char speedText[32] = "Speed: ";
-  appendString(speedText, 7, speedNames[speed]);
-  [self drawButton:[self speedButtonFrame] text:speedText context:context];
+  char difficultyText[32] = "Difficulty: ";
+  appendString(difficultyText, 12, difficultyNames[difficulty]);
+  [self drawButton:[self difficultyButtonFrame]
+              text:difficultyText
+           context:context];
   [self drawButton:[self soundButtonFrame]
               text:(SoundIsEnabled() ? "Sound: On" : "Sound: Off")
            context:context];
@@ -890,8 +911,9 @@ static void saveInteger(const char *key, NSInteger value) {
           inRect:CGRectMake(0, 24, width, 36)
         fontSize:28
          context:context];
-  [self drawText:"Drag to move the paddle and tap to serve. Clear all five "
-                 "levels to win. You start with three balls."
+  [self drawText:"Drag to move and tap to serve. Tap Pause for the menu. "
+                 "Boards continue endlessly and speed rises every five levels. "
+                 "Brick rows score 60 down to 10; harder modes multiply points."
           inRect:CGRectMake(16, 74, width - 32, 80)
         fontSize:15
        alignment:UITextAlignmentLeft
@@ -937,16 +959,17 @@ static void saveInteger(const char *key, NSInteger value) {
          context:context];
 }
 
-// "Fastest (speed): time", or "none yet" in place of the time.
-- (void)fastestText:(char *)text {
-  int length = appendString(text, 0, "Fastest (");
-  length = appendString(text, length, speedNames[speed]);
+// Shows the highest level reached in the selected difficulty.
+- (void)bestLevelText:(char *)text {
+  int length = appendString(text, 0, "Best level (");
+  length = appendString(text, length, difficultyNames[difficulty]);
   length = appendString(text, length, "): ");
-  if (fastestTicks[speed] > 0) {
-    appendTime(text, length, fastestTicks[speed], YES);
+  if (bestLevel[difficulty] > 0) {
+    length = appendNumber(text, length, bestLevel[difficulty]);
   } else {
-    appendString(text, length, "none yet");
+    length = appendString(text, length, "none yet");
   }
+  text[length] = 0;
 }
 
 - (void)drawButton:(CGRect)frame
@@ -975,6 +998,20 @@ static void saveInteger(const char *key, NSInteger value) {
   }
   if (state == StateHowToPlay) {
     [self drawHowToPlayWithContext:context];
+    return;
+  }
+  if (state == StatePaused) {
+    [self drawText:"PAUSED"
+            inRect:CGRectMake(0, height * 0.28f, width, 48)
+          fontSize:36
+           context:context];
+    [self drawButton:[self resumeButtonFrame] text:"Resume" context:context];
+    [self drawButton:[self restartButtonFrame]
+                text:"Restart Run"
+             context:context];
+    [self drawButton:[self returnTitleButtonFrame]
+                text:"Return to Title"
+             context:context];
     return;
   }
 
@@ -1028,7 +1065,7 @@ static void saveInteger(const char *key, NSInteger value) {
          alignment:UITextAlignmentRight
          context:context];
 
-  // Active P, R and S effects, with the seconds they have left, in between.
+  // Active P, R and S effects, with the seconds they have left.
   // P and R never both show, as each one ends the other.
   char effectsText[24];
   int length = 0;
@@ -1038,20 +1075,31 @@ static void saveInteger(const char *key, NSInteger value) {
   effectsText[length] = 0;
   if (length > 0) {
     [self drawText:effectsText
-            inRect:CGRectMake(width / 2 - 60, 20, 120, 24)
+            inRect:CGRectMake(width / 2 - 60, 68, 120, 24)
           fontSize:16
            context:context];
   }
 
   char levelText[24] = "Level ";
   int levelLength = appendNumber(levelText, 6, level);
-  levelLength = appendString(levelText, levelLength, "/");
-  levelText[appendNumber(levelText, levelLength, LEVEL_COUNT)] = 0;
+  levelText[levelLength] = 0;
   [self drawText:levelText
-          inRect:CGRectMake(10, 42, 150, 24)
+          inRect:CGRectMake(10, 42, 90, 24)
         fontSize:16
        alignment:UITextAlignmentLeft
          context:context];
+
+  char scoreText[32] = "Score: ";
+  scoreText[appendNumber(scoreText, 7, score)] = 0;
+  [self drawText:scoreText
+          inRect:CGRectMake(width / 2 - 75, 42, 140, 24)
+        fontSize:16
+         context:context];
+
+  if (state == StateServing || state == StatePlaying ||
+      state == StateLevelComplete) {
+    [self drawButton:[self pauseButtonFrame] text:"Pause" context:context];
+  }
 
   if (state == StateLevelComplete) {
     [self drawText:"LEVEL CLEARED"
@@ -1060,49 +1108,19 @@ static void saveInteger(const char *key, NSInteger value) {
            context:context];
     char levelCompleteText[32] = "Level ";
     int completeLength = appendNumber(levelCompleteText, 6, level);
-    completeLength = appendString(levelCompleteText, completeLength, " of ");
-    completeLength = appendNumber(levelCompleteText, completeLength, LEVEL_COUNT);
     levelCompleteText[completeLength] = 0;
     [self drawText:levelCompleteText
             inRect:CGRectMake(0, height / 2, width, 26)
           fontSize:18
            context:context];
-    [self drawText:"Tap for next level"
-            inRect:CGRectMake(0, height / 2 + 60, width, 30)
-          fontSize:18
-           context:context];
-    return;
-  }
-
-  if (state == StateWon) {
-    [self drawText:"YOU WIN"
-            inRect:CGRectMake(0, height / 2 - 60, width, 50)
-          fontSize:40
-           context:context];
-    char text[48];
-    int timeLength = appendString(text, 0, "Your time (");
-    timeLength = appendString(text, timeLength, speedNames[speed]);
-    timeLength = appendString(text, timeLength, "): ");
-    appendTime(text, timeLength, timerTicks, YES);
-    [self drawText:text
-            inRect:CGRectMake(0, height / 2, width, 26)
-          fontSize:18
-           context:context];
     if (newRecord) {
-      [self drawText:"NEW RECORD!"
+      [self drawText:"NEW BEST LEVEL!"
               inRect:CGRectMake(0, height / 2 + 30, width, 30)
-            fontSize:24
-             context:context];
-    } else {
-      char fastest[48];
-      [self fastestText:fastest];
-      [self drawText:fastest
-              inRect:CGRectMake(0, height / 2 + 32, width, 26)
-            fontSize:18
+            fontSize:20
              context:context];
     }
-    [self drawText:"Tap to continue"
-            inRect:CGRectMake(0, height / 2 + 90, width, 30)
+    [self drawText:"Tap for next level"
+            inRect:CGRectMake(0, height / 2 + 60, width, 30)
           fontSize:18
            context:context];
     return;
@@ -1112,16 +1130,19 @@ static void saveInteger(const char *key, NSInteger value) {
             inRect:CGRectMake(0, height / 2 - 60, width, 50)
           fontSize:40
            context:context];
-    // How close it was: "1 brick left" or "12 bricks left".
-    char leftText[24];
-    int leftLength = appendNumber(leftText, 0, bricksLeft);
-    appendString(leftText, leftLength,
-                 bricksLeft == 1 ? " brick left" : " bricks left");
-    [self drawText:leftText
+    char finalScoreText[32] = "Score: ";
+    finalScoreText[appendNumber(finalScoreText, 7, score)] = 0;
+    [self drawText:finalScoreText
             inRect:CGRectMake(0, height / 2, width, 26)
           fontSize:20
            context:context];
-    [self drawText:"Tap to continue"
+    char bestText[32] = "Best level: ";
+    bestText[appendNumber(bestText, 12, bestLevel[difficulty])] = 0;
+    [self drawText:bestText
+            inRect:CGRectMake(0, height / 2 + 32, width, 26)
+          fontSize:18
+           context:context];
+    [self drawText:"Tap to return"
             inRect:CGRectMake(0, height / 2 + 90, width, 30)
           fontSize:18
            context:context];

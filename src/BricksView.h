@@ -8,12 +8,11 @@
 
 #define BRICK_ROWS 6
 #define BRICK_COLUMNS 8
-#define LEVEL_COUNT 5
-#define BALLS_PER_GAME 3
+#define HANDCRAFTED_LEVEL_COUNT 5
 #define MAX_BALLS_LEFT 9 // The counter shows a single digit.
 #define MAX_BALLS_IN_PLAY 8
 #define MAX_CAPSULES 6
-#define MAX_PIECES 192 // Flying pieces of broken bricks and celebrations.
+#define MAX_PIECES 192 // Flying pieces from broken bricks.
 #define TRAIL_LENGTH 6 // Earlier ball positions drawn behind each ball.
 
 typedef enum {
@@ -21,8 +20,8 @@ typedef enum {
   StateHowToPlay,
   StateServing,
   StatePlaying,
+  StatePaused,
   StateLevelComplete,
-  StateWon,
   StateLost
 } GameState;
 
@@ -36,8 +35,14 @@ typedef enum {
   PowerUpCount
 } PowerUp;
 
-// How fast the balls move, chosen on the title screen.
-typedef enum { SpeedNormal, SpeedFast, SpeedLudicrous, SpeedCount } Speed;
+// The selected ruleset, chosen on the title screen.
+typedef enum {
+  DifficultyCasual,
+  DifficultyClassic,
+  DifficultyTough,
+  DifficultyExpert,
+  DifficultyCount
+} Difficulty;
 
 typedef struct {
   BOOL active;
@@ -54,8 +59,7 @@ typedef struct {
   PowerUp type;
 } Capsule;
 
-// A piece of a broken brick, or of a celebration burst, flying off and fading
-// out.
+// A piece of a broken brick flying off and fading out.
 typedef struct {
   BOOL active;
   CGFloat x, y; // Top-left corner.
@@ -67,19 +71,20 @@ typedef struct {
 
 @interface BricksView : UIView {
   GameState state;
+  GameState pausedState;
   BOOL bricks[BRICK_ROWS][BRICK_COLUMNS];
   int bricksLeft;
   int level;
+  int score;
   int ballsLeft;  // Including the ones in play.
   int timerTicks; // Game time, in ticks of 1/60 s.
   BOOL timerRunning;
-  Speed speed;      // Saved between launches.
-  // Fastest win at each speed, saved between launches; 0 if none yet.
-  int fastestTicks[SpeedCount];
-  BOOL newRecord;  // The game just won set a new fastest time.
-  int celebrationTicks; // Ticks since the game was won.
-  // Games played at each speed, saved between launches.
-  int gamesPlayed[SpeedCount];
+  Difficulty difficulty; // Saved between launches.
+  // Highest level reached in each difficulty, saved between launches.
+  int bestLevel[DifficultyCount];
+  BOOL newRecord; // The current run reached a new best level.
+  // Games played at each difficulty, saved between launches.
+  int gamesPlayed[DifficultyCount];
   CGFloat paddleX; // Center of the paddle.
   Ball balls[MAX_BALLS_IN_PLAY];
   Capsule capsules[MAX_CAPSULES];
